@@ -46,7 +46,7 @@ options:
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
-installed the requirements, "requests" and "tabulate"
+installed the requirements, "requests" and "tabulate". Minimum Python version is 3.11.
 
 
 You need to log in before you can start using PyLibby. 
