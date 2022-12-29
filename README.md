@@ -43,6 +43,7 @@ options:
   -si, --save-info      Save information about downloaded book.
   -i id, --info id      Print media info (JSON).
   -j, --json            Output verbose JSON instead of tables.
+  -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
