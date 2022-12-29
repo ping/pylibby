@@ -22,6 +22,11 @@ import sys
 import urllib.parse
 import requests
 import os
+import dicttoxml
+import html
+import re
+from mutagen.mp3 import MP3
+from mutagen.id3 import TXXX, TPE1, TIT2, TIT3, TPUB, TYER, TCOM, TCON, TALB, TDRL, COMM
 from typing import Callable
 from os import path
 import datetime
@@ -231,7 +236,7 @@ class Libby:
 
     def download_audiobook_mp3(self, loan: dict, output_path: str,
                                callback_functions: list[Callable[[str, int], None]] = None,
-                               save_info=False, download_covers=True):
+                               save_info=False, download_covers=True, embed_metadata=False):
         # Workaround for getting audiobook without ODM
         audiobook_info = self.open_audiobook(loan["cardId"], loan["id"])
         if not os.path.exists(output_path):
@@ -239,6 +244,10 @@ class Libby:
 
         final_path = os.path.join(output_path, self.get_download_path(audiobook_info["media_info"]))
         os.makedirs(final_path, exist_ok=True)
+
+        if embed_metadata:
+            tocout = self.get_toc_from_audiobook_info(audiobook_info)
+            print("Converted Chapter Markers to OverDrive Format")
 
         for download_url in \
                 [audiobook_info["audiobook_urls"]["urls"]["web"] + s["path"] for s in audiobook_info["openbook"]["spine"]]:
@@ -259,6 +268,9 @@ class Libby:
                                 f(filename, mb)
                         else:
                             print(f"{filename}: Downloaded {mb}MB.")
+            if embed_metadata:
+                self.embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info)
+                print(f"Embedded tags in {filename}")
 
         if save_info:
             with open(os.path.join(final_path, "info.json"), "w") as w:
@@ -266,6 +278,86 @@ class Libby:
 
         if download_covers:
             self.download_covers(loan, final_path)
+
+    def embed_tag_data(self, filename: str, toc_entry_for_file: dict, audiobook_info: dict):
+                # open file for tag embedding
+                file = MP3(filename)
+                if file.tags is None:
+                    file.add_tags()
+                tag = file.tags
+
+                #create and add tags
+                artist = TPE1(text=",".join([a['name'] for a in audiobook_info["media_info"]["creators"] if a['role'] == "Author"]))
+                tag.add(artist)
+                title = TIT2(text=audiobook_info["media_info"]["title"])
+                title_album = TALB(text=audiobook_info["media_info"]["title"])
+                tag.add(title)
+                tag.add(title_album)
+                if "subtitle" in audiobook_info["media_info"]:
+                    subtitle = TIT3(text=audiobook_info["media_info"]["subtitle"])
+                    tag.add(subtitle)
+                publisher = TPUB(text=audiobook_info["media_info"]["publisher"]["name"])
+                tag.add(publisher)
+                # Year usage non-standardized, use both
+                year = TYER(text=str(datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).year))
+                year2 = TDRL(text=datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).strftime("%Y-%m-%d"))
+                tag.add(year)
+                tag.add(year2)
+                narrator = TCOM(text=",".join([a['name'] for a in audiobook_info["media_info"]["creators"] if a['role'] == "Narrator"]))
+                tag.add(narrator)
+                desc = COMM(lang='\x00\x00\x00', desc='', text=re.sub("<\\/?[BIbi]>","",html.unescape(audiobook_info["media_info"]["description"]).replace("<br>", "\n")))
+                tag.add(desc)
+                genre = TCON(text=";".join(map(lambda x: x["name"], audiobook_info["media_info"]["subjects"])))
+                tag.add(genre)
+                ## IF NOT SERIES
+                if "detailedSeries" in audiobook_info["media_info"]:
+                    series = TXXX(desc="MVNM",text=audiobook_info["media_info"]["detailedSeries"]["seriesName"])
+                    tag.add(series)
+                    vol_number = TXXX(desc="MVIN",text=audiobook_info["media_info"]["detailedSeries"]["readingOrder"])
+                    tag.add(vol_number)
+
+                language = TXXX(desc="language", text=",".join(map(lambda x: x['name'],audiobook_info["media_info"]["languages"])))
+                tag.add(language)
+
+                isbn = None
+                for f in audiobook_info["media_info"]["formats"]:
+                    for i in f["identifiers"]:
+                        if i["type"] == "ISBN":
+                            isbn = TXXX(desc="ISBN", text=i['value'])
+                if isbn is not None:
+                    tag.add(isbn)
+
+                chapters = TXXX(desc="OverDrive MediaMarkers", text=toc_entry_for_file)
+                tag.add(chapters)
+
+                # save
+                file.save()
+
+    def get_toc_from_audiobook_info(self, audiobook_info: dict) -> dict:
+        toc = {}
+        for entry in audiobook_info["openbook"]["nav"]["toc"]:
+            filename = entry["path"].split("}")[-1].split("#")[0]
+            if filename not in toc:
+                toc[filename] = []
+            new_entry = {}
+            new_entry["Name"] = entry["title"]
+            timestamp_temp = entry["path"].split("#")
+            new_entry["Time"] = self.convert_seconds_to_timestamp(timestamp_temp[-1]) if len(timestamp_temp) != 1 else "0:00.000"
+            toc[filename].append(new_entry)
+        tocout = {}
+        for key, value in toc.items():
+            tocout[key] = dicttoxml.dicttoxml(value, custom_root='Markers',
+                                              xml_declaration=False,
+                                              attr_type=False,
+                                              return_bytes=False,
+                                              item_func=lambda x: 'Marker')
+        return tocout
+    
+    def convert_seconds_to_timestamp(self, seconds: str) -> str:
+        minutes, secs = divmod(int(seconds), 60)
+
+        timestamp = f"{minutes:02d}:{secs:02d}.000"
+        return timestamp
 
     def get_filename(self, url: str) -> str:
         url_parsed = urllib.parse.unquote(url)
@@ -289,7 +381,7 @@ class Libby:
                 with open(os.path.join(path_, c + ".jpg"), "wb") as w:
                     w.write(self.http_session.get(media_info["covers"][c]["href"]).content)
 
-    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_covers=True, get_odm=False):
+    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_covers=True, get_odm=False, embed_metadata=False):
         # Does not actually download ebook, only gets the ODM or ACSM for now.
         # Will however download audiobook-mp3, without ODM
         if not os.path.exists(output_path):
@@ -313,7 +405,7 @@ class Libby:
                     else:
                         raise RuntimeError(f"Something went wrong when downloading odm: {fulfill}")
                 else:
-                    self.download_audiobook_mp3(loan, output_path, save_info=save_info)
+                    self.download_audiobook_mp3(loan, output_path, save_info=save_info, embed_metadata=embed_metadata)
             else:
                 #resp = self.http_session.get(url)
                 #print(resp)
@@ -381,6 +473,7 @@ if __name__ == "__main__":
     parser.add_argument("-si", "--save-info", help="Save information about downloaded book.", action="store_true")
     parser.add_argument("-i", "--info", help="Print media info (JSON).", type=str, metavar="id")
     parser.add_argument("-j", "--json", help="Output verbose JSON instead of tables.", action="store_true")
+    parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers", action="store_true")
     args = parser.parse_args()
 
     L = Libby(args.id_file, code=args.code)
@@ -446,7 +539,7 @@ if __name__ == "__main__":
 
         elif arg in ["-dl", "--download"]:
             print("Downloading", sys.argv[arg_pos + 1])
-            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output, args.save_info, get_odm=args.odm)
+            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output, args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata)
 
         elif arg in ["-r", "--return-book"]:
             L.return_book(sys.argv[arg_pos + 1])
