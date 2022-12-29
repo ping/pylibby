@@ -199,21 +199,21 @@ class Libby:
             return availability["isAvailable"]
         return False
 
-    def get_author(self, title_id: str) -> str:
-        return " and ".join([creator["name"] for creator in self.get_media_info(title_id)["creators"] if creator["role"] == "Author"])
+    def get_author(self, title_id: str, delim=" & ") -> str:
+        return delim.join([creator["name"] for creator in self.get_media_info(title_id)["creators"] if creator["role"] == "Author"])
 
-    def get_author_by_media_info(self, media_info: dict) -> str:
-        return " and ".join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Author"])
+    def get_author_by_media_info(self, media_info: dict, delim=" & ") -> str:
+        return delim.join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Author"])
 
-    def get_languages_by_media_info(self, media_info: dict) -> str:
-        return " and ".join([l["Name"] for l in media_info["languages"]])
+    def get_languages_by_media_info(self, media_info: dict, delim=" & ") -> str:
+        return delim.join([l["name"] for l in media_info["languages"]])
 
-    def get_narrator(self, title_id: str) -> str:
+    def get_narrator(self, title_id: str, delim=" & ") -> str:
         media_info = self.get_media_info(title_id)
-        return " and ".join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Narrator"])
+        return delim.join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Narrator"])
 
-    def get_narrator_by_media_info(self, media_info: dict) -> str:
-        return " and ".join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Narrator"])
+    def get_narrator_by_media_info(self, media_info: dict, delim=" & ") -> str:
+        return delim.join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Narrator"])
 
     def get_download_path(self, media_info: dict) -> str:
         # this should probably take a template, hardcoding the format for now
@@ -287,8 +287,8 @@ class Libby:
                 tag = file.tags
 
                 #create and add tags
-                artist = TPE1(text=",".join([a['name'] for a in audiobook_info["media_info"]["creators"] if a['role'] == "Author"]))
-                tag.add(artist)
+                author = TPE1(text=self.get_author_by_media_info(audiobook_info["media_info"],delim=","))
+                tag.add(author)
                 title = TIT2(text=audiobook_info["media_info"]["title"])
                 title_album = TALB(text=audiobook_info["media_info"]["title"])
                 tag.add(title)
@@ -303,7 +303,7 @@ class Libby:
                 year2 = TDRL(text=datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).strftime("%Y-%m-%d"))
                 tag.add(year)
                 tag.add(year2)
-                narrator = TCOM(text=",".join([a['name'] for a in audiobook_info["media_info"]["creators"] if a['role'] == "Narrator"]))
+                narrator = TCOM(text=self.get_narrator_by_media_info(audiobook_info["media_info"],delim=","))
                 tag.add(narrator)
                 desc = COMM(lang='\x00\x00\x00', desc='', text=re.sub("<\\/?[BIbi]>","",html.unescape(audiobook_info["media_info"]["description"]).replace("<br>", "\n")))
                 tag.add(desc)
@@ -316,7 +316,7 @@ class Libby:
                     vol_number = TXXX(desc="MVIN",text=audiobook_info["media_info"]["detailedSeries"]["readingOrder"])
                     tag.add(vol_number)
 
-                language = TXXX(desc="language", text=",".join(map(lambda x: x['name'],audiobook_info["media_info"]["languages"])))
+                language = TXXX(desc="language", text=self.get_languages_by_media_info(audiobook_info["media_info"]))
                 tag.add(language)
 
                 isbn = None
@@ -486,11 +486,11 @@ if __name__ == "__main__":
                 "Formats": "\n".join(L.get_formats_for_loaned_book_or_media_info(m)) or "unavailable",
                 "Libraries": "\n".join(lib + ": available" if m['siteAvailabilities'][lib]["isAvailable"]
                                        else lib + ": unavailable" for lib in m['siteAvailabilities'].keys()),
-                "Authors": "\n".join(L.get_author_by_media_info(m).split(" and ")),
+                "Authors": "\n".join(L.get_author_by_media_info(m).split(" & ")),
                 "Title": m['title']
             }
             if narrators:
-                row["Narrators"] = "\n".join(L.get_narrator_by_media_info(m).split(" and "))
+                row["Narrators"] = "\n".join(L.get_narrator_by_media_info(m).split(" & "))
             table.append(row)
 
         return table
@@ -517,9 +517,9 @@ if __name__ == "__main__":
                         "Formats": "\n".join(L.get_formats_for_loaned_book_or_media_info(lo)) or "unavailable",
                         "Library": next((c["advantageKey"] for c in s["cards"] if c["cardId"] == lo["cardId"]), ""),
                         "CardId": lo["cardId"],
-                        "Authors": "\n".join(L.get_author_by_media_info(mi).split(" and ")),
+                        "Authors": "\n".join(L.get_author_by_media_info(mi).split(" & ")),
                         "Title": lo['title'],
-                        "Narrators": "\n".join(L.get_narrator_by_media_info(mi).split(" and "))
+                        "Narrators": "\n".join(L.get_narrator_by_media_info(mi).split(" & "))
                     })
                 print(tabulate(t, headers="keys", tablefmt="grid"))
 
