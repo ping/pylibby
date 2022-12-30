@@ -330,7 +330,7 @@ class Libby:
                 tag.add(year2)
                 narrator = TCOM(text=self.get_narrator_by_media_info(audiobook_info["media_info"],delim=","))
                 tag.add(narrator)
-                desc = COMM(lang='\x00\x00\x00', desc='', text=re.sub("<\\/?[BIbi]>","",html.unescape(audiobook_info["media_info"]["description"]).replace("<br>", "\n")))
+                desc = COMM(lang='\x00\x00\x00', desc='', text=re.sub("<\\/?[BIbiPp]>","",html.unescape(audiobook_info["media_info"]["description"]).replace("<br>", "\n")))
                 tag.add(desc)
                 genre = TCON(text=";".join(map(lambda x: x["name"], audiobook_info["media_info"]["subjects"])))
                 tag.add(genre)
