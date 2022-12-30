@@ -215,34 +215,53 @@ class Libby:
     def get_narrator_by_media_info(self, media_info: dict, delim=" & ") -> str:
         return delim.join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Narrator"])
 
-    def get_download_path(self, media_info: dict) -> str:
-        # this should probably take a template, hardcoding the format for now
-        author_path = self.get_author_by_media_info(media_info)
-        book_path = ""
+    def get_download_path(self, media_info: dict, format_string="%a/%s %v-%t-[%y]-[ODID %o]-[ISBN %i]", no_replace_space=False) -> str:
+        # this takes "%s{/}", and replaces it with "/", but only if the series
+        # exists.  We do this to allow for creating subfolders, but only if there is a series.
+        print(format_string)
         if "detailedSeries" in media_info:
-            if "readingOrder" in media_info["detailedSeries"]:
-                book_path += f"{media_info['detailedSeries']['seriesName']}_{media_info['detailedSeries']['readingOrder']}-"
-        book_path += f"{media_info['title']}"
+            format_string = re.sub(r"%s\{/(.*)\}", r"/\1", format_string)
+            format_string = format_string.replace("%s", media_info['detailedSeries']['seriesName'])
+            format_string = format_string.replace("%v", media_info['detailedSeries']['readingOrder'])
+        else:
+            format_string = re.sub(r"%s\{/(.*)\}", "", format_string)
+            format_string = format_string.replace("\%s", "")
+            format_string = format_string.replace("%v", "")
+        format_string = format_string.replace("%a", self.get_author_by_media_info(media_info))
+        format_string = format_string.replace("%t", media_info['title'])
         if "publishDate" in media_info:
-            book_path +=f"-[{str(datetime.datetime.fromisoformat(media_info['publishDate']).year)}]"
-        book_path += f"-[ODID_{media_info['id']}]"
+            format_string = format_string.replace("%y", str(datetime.datetime.fromisoformat(media_info['publishDate']).year))
+        else:
+            format_string = format_string.replace("%y", "") 
+        format_string = format_string.replace("%o", media_info['id'])
+        format_string = format_string.replace("%p", media_info['publisher']['name'])
+        format_string = format_string.replace("%n", self.get_narrator_by_media_info(media_info))
+
         for f in media_info["formats"]:
             for i in f["identifiers"]:
                 if i["type"] == "ISBN":
-                    book_path += f"-[ISBN_{str(i['value'])}]"
-                    return os.path.join(author_path, book_path).replace(" ", "_")
+                    format_string = format_string.replace("%i", i['value'])
 
-        return os.path.join(author_path, book_path).replace(" ", "_")
+        if no_replace_space:
+            print(format_string)
+            return format_string
+        else:
+            print(format_string.replace(" ", "_"))
+            return format_string.replace(" ", "_")
 
-    def download_audiobook_mp3(self, loan: dict, output_path: str,
+    def download_audiobook_mp3(self, loan: dict, output_path: str, format_string,
                                callback_functions: list[Callable[[str, int], None]] = None,
-                               save_info=False, download_covers=True, embed_metadata=False):
+                               save_info=False, download_covers=True, embed_metadata=False, no_replace_space=False):
         # Workaround for getting audiobook without ODM
         audiobook_info = self.open_audiobook(loan["cardId"], loan["id"])
         if not os.path.exists(output_path):
             raise RuntimeError(f"Path does not exist: {output_path}")
 
-        final_path = os.path.join(output_path, self.get_download_path(audiobook_info["media_info"]))
+        final_path = ""
+        if format_string is not None:
+            final_path = os.path.join(output_path, self.get_download_path(audiobook_info["media_info"],format_string=format_string,no_replace_space=no_replace_space))
+        else:
+            final_path = os.path.join(output_path, self.get_download_path(audiobook_info["media_info"], no_replace_space=no_replace_space))
         os.makedirs(final_path, exist_ok=True)
 
         if embed_metadata:
@@ -381,7 +400,7 @@ class Libby:
                 with open(os.path.join(path_, c + ".jpg"), "wb") as w:
                     w.write(self.http_session.get(media_info["covers"][c]["href"]).content)
 
-    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_covers=True, get_odm=False, embed_metadata=False):
+    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_covers=True, get_odm=False, embed_metadata=False, format_string=False, no_replace_space=False):
         # Does not actually download ebook, only gets the ODM or ACSM for now.
         # Will however download audiobook-mp3, without ODM
         if not os.path.exists(output_path):
@@ -392,7 +411,11 @@ class Libby:
             url = f"https://sentry-read.svc.overdrive.com/card/{loan['cardId']}/loan/{loan['id']}/fulfill/{format_id}"
             if format_id == "audiobook-mp3":
                 if get_odm:
-                    download_path = self.get_download_path(self.get_media_info(loan["id"]))
+                    download_path = ""
+                    if format_string is not None:
+                        download_path = self.get_download_path(self.get_media_info(loan["id"]),format_string=format_string,no_replace_space=no_replace_space)
+                    else:
+                        download_path = self.get_download_path(self.get_media_info(loan["id"],no_replace_space=no_replace_space))
                     final_path = os.path.join(output_path, download_path)
                     if download or save_info:
                         os.makedirs(final_path, exist_ok=True)
@@ -405,7 +428,7 @@ class Libby:
                     else:
                         raise RuntimeError(f"Something went wrong when downloading odm: {fulfill}")
                 else:
-                    self.download_audiobook_mp3(loan, output_path, save_info=save_info, embed_metadata=embed_metadata)
+                    self.download_audiobook_mp3(loan, output_path, save_info=save_info, embed_metadata=embed_metadata, format_string=format_string, no_replace_space=no_replace_space)
             else:
                 #resp = self.http_session.get(url)
                 #print(resp)
@@ -414,7 +437,11 @@ class Libby:
                 fulfill = self.http_session.get(url).json()
                 if "fulfill" in fulfill:
                     fulfill_url = fulfill["fulfill"]["href"]
-                    download_path = self.get_download_path(self.get_media_info(loan["id"]))
+                    download_path = ""
+                    if format_string is not None:
+                        download_path = self.get_download_path(self.get_media_info(loan["id"]),format_string=format_string, no_replace_space=no_replace_space)
+                    else:
+                        download_path = self.get_download_path(self.get_media_info(loan["id"]), no_replace_space=no_replace_space)
                     final_path = os.path.join(output_path,download_path)
                     if download or save_info:
                         os.makedirs(final_path, exist_ok=True)
@@ -473,7 +500,9 @@ if __name__ == "__main__":
     parser.add_argument("-si", "--save-info", help="Save information about downloaded book.", action="store_true")
     parser.add_argument("-i", "--info", help="Print media info (JSON).", type=str, metavar="id")
     parser.add_argument("-j", "--json", help="Output verbose JSON instead of tables.", action="store_true")
-    parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers", action="store_true")
+    parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers.", action="store_true")
+    parser.add_argument("-ofs", "--output-format-string", help="Format string specifying output folders.", type=str, metavar="string")
+    parser.add_argument("-nrs", "--no_replace_space", help="Does not replace spaces in folder path with underscores.", action="store_true")
     args = parser.parse_args()
 
     L = Libby(args.id_file, code=args.code)
@@ -539,7 +568,7 @@ if __name__ == "__main__":
 
         elif arg in ["-dl", "--download"]:
             print("Downloading", sys.argv[arg_pos + 1])
-            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output, args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata)
+            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output,args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata, format_string=args.output_format_string, no_replace_space=args.no_replace_space)
 
         elif arg in ["-r", "--return-book"]:
             L.return_book(sys.argv[arg_pos + 1])
