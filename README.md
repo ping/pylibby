@@ -87,6 +87,7 @@ format string.  Substitutions include:
 %t - title
 %a - author
 %s - series
+%S - subtitle
 %v - volume (book in series)
 %p - publisher
 %y - year published
@@ -100,7 +101,7 @@ a series.  To do so, simply include:
 %s{/}
 
 Which will render to / if there is a series, but if the book is not in a series,
-will just disappear.
+will just disappear.  This similarly works on subtitle existence with %S
 
 By default, the output folder for a book will have spaces replaced with
 underscores.  To prevent this, simply add -nrs to the command line.

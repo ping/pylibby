@@ -218,15 +218,6 @@ class Libby:
     def get_download_path(self, media_info: dict, format_string="%a/%s %v-%t-[%y]-[ODID %o]-[ISBN %i]", no_replace_space=False) -> str:
         # this takes "%s{/}", and replaces it with "/", but only if the series
         # exists.  We do this to allow for creating subfolders, but only if there is a series.
-        print(format_string)
-        if "detailedSeries" in media_info:
-            format_string = re.sub(r"%s\{/(.*)\}", r"/\1", format_string)
-            format_string = format_string.replace("%s", media_info['detailedSeries']['seriesName'])
-            format_string = format_string.replace("%v", media_info['detailedSeries']['readingOrder'])
-        else:
-            format_string = re.sub(r"%s\{/(.*)\}", "", format_string)
-            format_string = format_string.replace("\%s", "")
-            format_string = format_string.replace("%v", "")
         format_string = format_string.replace("%a", self.get_author_by_media_info(media_info))
         format_string = format_string.replace("%t", media_info['title'])
         if "publishDate" in media_info:
@@ -236,11 +227,26 @@ class Libby:
         format_string = format_string.replace("%o", media_info['id'])
         format_string = format_string.replace("%p", media_info['publisher']['name'])
         format_string = format_string.replace("%n", self.get_narrator_by_media_info(media_info))
+        if "subtitle" in media_info:
+            format_string = re.sub(r"%S\{([^{}]*)\}", r"\1", format_string)
+            format_string = format_string.replace("%S", media_info["subtitle"])
+        else:
+            format_string = re.sub(r"%S\{([^{}]*)\}", format_string)
+            format_string = format_string.replace("%S", "")
 
         for f in media_info["formats"]:
             for i in f["identifiers"]:
                 if i["type"] == "ISBN":
                     format_string = format_string.replace("%i", i['value'])
+
+        if "detailedSeries" in media_info:
+            format_string = re.sub(r"%s\{([^{}]*)\}", r"\1", format_string)
+            format_string = format_string.replace("%s", media_info['detailedSeries']['seriesName'])
+            format_string = format_string.replace("%v", media_info['detailedSeries']['readingOrder'])
+        else:
+            format_string = re.sub(r"%s\{([^{}]*)\}", "", format_string)
+            format_string = format_string.replace("\%s", "")
+            format_string = format_string.replace("%v", "")
 
         if no_replace_space:
             print(format_string)
