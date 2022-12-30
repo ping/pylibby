@@ -44,6 +44,11 @@ options:
   -i id, --info id      Print media info (JSON).
   -j, --json            Output verbose JSON instead of tables.
   -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers
+  -ofs string, --output-format-string string
+                        Format string specifying output folders.
+  -nrs, --no_replace_space
+                        Does not replace spaces in folder path with underscores.
+  
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
