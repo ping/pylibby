@@ -245,7 +245,7 @@ class Libby:
             format_string = format_string.replace("%v", media_info['detailedSeries']['readingOrder'])
         else:
             format_string = re.sub(r"%s\{([^{}]*)\}", "", format_string)
-            format_string = format_string.replace("\%s", "")
+            format_string = format_string.replace("%s", "")
             format_string = format_string.replace("%v", "")
 
         if no_replace_space:
