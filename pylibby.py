@@ -242,7 +242,12 @@ class Libby:
         if "detailedSeries" in media_info:
             format_string = re.sub(r"%s\{([^{}]*)\}", r"\1", format_string)
             format_string = format_string.replace("%s", media_info['detailedSeries']['seriesName'])
-            format_string = format_string.replace("%v", media_info['detailedSeries']['readingOrder'])
+            if "readingOrder" in media_info['detailedSeries']:
+                format_string = re.sub(r"%v\{([^{}]*)\}", r"\1", format_string)
+                format_string = format_string.replace("%v", media_info['detailedSeries']['readingOrder'])
+            else:
+                format_string = re.sub(r"%v\{([^{}]*)\}", "", format_string)
+                format_string = format_string.replace("%v", "")
         else:
             format_string = re.sub(r"%s\{([^{}]*)\}", "", format_string)
             format_string = format_string.replace("%s", "")
