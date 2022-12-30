@@ -231,7 +231,7 @@ class Libby:
             format_string = re.sub(r"%S\{([^{}]*)\}", r"\1", format_string)
             format_string = format_string.replace("%S", media_info["subtitle"])
         else:
-            format_string = re.sub(r"%S\{([^{}]*)\}", format_string)
+            format_string = re.sub(r"%S\{([^{}]*)\}", "", format_string)
             format_string = format_string.replace("%S", "")
 
         for f in media_info["formats"]:
