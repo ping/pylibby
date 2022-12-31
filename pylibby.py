@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with PyLibby. If not, see <http://www.gnu.org/licenses/>.
 
+import random
 import json
 import sys
 import urllib.parse
@@ -24,6 +25,7 @@ import requests
 import os
 import dicttoxml
 import html
+import time
 import re
 from mutagen.mp3 import MP3
 from mutagen.id3 import TXXX, TPE1, TIT2, TIT3, TPUB, TYER, TCOM, TCON, TALB, TDRL, COMM
@@ -299,8 +301,14 @@ class Libby:
                         else:
                             print(f"{filename}: Downloaded {mb}MB.")
             if embed_metadata:
-                self.embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info)
-                print(f"Embedded tags in {filename}")
+                if filename in tocout:
+                    self.embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info)
+                    print(f"Embedded tags in {filename}")
+                else:
+                    self.embed_tag_data(os.path.join(final_path, filename), "<Markers><Marker><Name>(continued)</Name><Time>0:00.000</Time></Marker></Markers>", audiobook_info)
+                    print("no toc to embed, generated (continued) chapter marker, and embedded it.")
+
+            time.sleep(random.random() * 2)
 
         if save_info:
             with open(os.path.join(final_path, "info.json"), "w") as w:
@@ -385,9 +393,9 @@ class Libby:
         return tocout
     
     def convert_seconds_to_timestamp(self, seconds: str) -> str:
-        minutes, secs = divmod(int(seconds), 60)
+        minutes, secs = divmod(float(seconds), 60)
 
-        timestamp = f"{minutes:02d}:{secs:02d}.000"
+        timestamp = f"{minutes:02.0f}:{secs:06.03f}"
         return timestamp
 
     def get_filename(self, url: str) -> str:
