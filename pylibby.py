@@ -343,8 +343,9 @@ class Libby:
                 if "detailedSeries" in audiobook_info["media_info"]:
                     series = TXXX(desc="MVNM",text=audiobook_info["media_info"]["detailedSeries"]["seriesName"])
                     tag.add(series)
-                    vol_number = TXXX(desc="MVIN",text=audiobook_info["media_info"]["detailedSeries"]["readingOrder"])
-                    tag.add(vol_number)
+                    if "readingOrder" in audiobook_info["media_info"]["detailedSeries"]:
+                        vol_number = TXXX(desc="MVIN",text=audiobook_info["media_info"]["detailedSeries"]["readingOrder"])
+                        tag.add(vol_number)
 
                 language = TXXX(desc="language", text=self.get_languages_by_media_info(audiobook_info["media_info"]))
                 tag.add(language)
