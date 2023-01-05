@@ -43,6 +43,12 @@ options:
   -si, --save-info      Save information about downloaded book.
   -i id, --info id      Print media info (JSON).
   -j, --json            Output verbose JSON instead of tables.
+  -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers
+  -ofs string, --output-format-string string
+                        Format string specifying output folders.
+  -nrs, --no_replace_space
+                        Does not replace spaces in folder path with underscores.
+  
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
@@ -79,6 +85,41 @@ For audiobooks the format will always be "audiobook-mp3".
 ```bash
 python pylibby.py -dl 654321 -f audiobook-mp3 -o /home/username/books
 ```
+
+When downloading an book, you can specify the output format using a custom
+format string.  Substitutions include:
+
+%t - title
+%a - author
+%s - series
+%S - subtitle
+%v - volume (book in series)
+%p - publisher
+%y - year published
+%n - narrator
+%i - isbn
+%o - ODID
+
+Additionally, you can include text, but make it conditional on if the book is in
+a series.  To do so, simply include:
+
+%s{/}
+
+Which will render to / if there is a series, but if the book is not in a series,
+will just disappear.  This similarly works on subtitle existence with %S
+
+By default, the output folder for a book will have spaces replaced with
+underscores.  To prevent this, simply add -nrs to the command line.
+
+Thus, an example is:
+```bash
+python pylibby.py -dl 654321 -f audiobook-mp3 -ofs "%a/%t" -nrs
+```
+
+Which will result in a folder structure like:
+
+Jane Austen/Pride and Prejudice/file.mp3
+
 You can search for books like this:
 ```bash
 python pylibby.py -s "moby dick"
