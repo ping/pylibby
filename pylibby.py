@@ -227,6 +227,7 @@ class Libby:
             format_string = format_string.replace("%y", str(datetime.datetime.fromisoformat(media_info['publishDate']).year))
         else:
             # Removing the stuff people usually put around. Maybe we can find a regex for this? Order is important.
+            # Maybe make "%y{%y - }" possible instead?
             for y in [" [%y] ", "[%y] - ", "[%y] ","[%y]","-%y-", " - %y - ", ".%y.", "%y - ", "%y-", "%y.", "%y"]:
                 format_string = format_string.replace(y, "")
         format_string = format_string.replace("%o", media_info['id'])
@@ -506,7 +507,8 @@ class Libby:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='PyLibby',
-        description='CLI for Libby')
+        description='CLI for Libby',
+        formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("-id", "--id-file", help="Path to id JSON (which you get from '--code'. Defaults to id.json).", default="id.json", metavar="path")
     parser.add_argument("-c", "--code", help="Login with code.", type=int, metavar="12345678")
@@ -525,7 +527,19 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--info", help="Print media info (JSON).", type=str, metavar="id")
     parser.add_argument("-j", "--json", help="Output verbose JSON instead of tables.", action="store_true")
     parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers.", action="store_true")
-    parser.add_argument("-ofs", "--output-format-string", help="Format string specifying output folders.", type=str, metavar="string")
+    parser.add_argument("-ofs", "--output-format-string",help=('Format string specifying output folder(s), default is %%a/%%y - %%t\n'
+                          '%%a = Author(s)\n'
+                          '%%n = Narrator(s)\n'
+                          '%%i = ISBN\n'
+                          '%%o = Overdrive ID\n'
+                          '%%p = Publisher\n'
+                          '%%s = Series\n'
+                          '%%s{STRING} = Will place STRING in folder name if book is in series, else nothing\n'
+                          '%%S = Subtitle\n'
+                          '%%S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing\n'
+                          '%%t = Title\n'
+                          '%%v = Volume (book in series)\n'
+                          '%%y = Year published\n'), type=str, metavar="string")
     parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true")
     args = parser.parse_args()
 
