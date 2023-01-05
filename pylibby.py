@@ -539,7 +539,7 @@ if __name__ == "__main__":
                           '%%S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing\n'
                           '%%t = Title\n'
                           '%%v = Volume (book in series)\n'
-                          '%%y = Year published\n'), type=str, metavar="string")
+                          '%%y = Year published'), type=str, metavar="string")
     parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true")
     args = parser.parse_args()
 
