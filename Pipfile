@@ -6,8 +6,11 @@ name = "pypi"
 [packages]
 requests = "*"
 tabulate = "*"
+dicttoxml = "*"
+mutagen = "*"
 
 [dev-packages]
+flake8 = "*"
 
 [requires]
 python_version = "3.11"
