@@ -44,20 +44,23 @@ options:
   -i id, --info id      Print media info (JSON).
   -j, --json            Output verbose JSON instead of tables.
   -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers.
+  -opf, --create-opf    Create an OPF file with metadata when downloading a book.
+  -dlo id, --download-opf id
+                        Generate an OPF file by title id.
   -ofs string, --output-format-string string
-                        Format string specifying output folder(s), default is %a/%y - %t
-                        %a = Author(s)
-                        %n = Narrator(s)
-                        %i = ISBN
-                        %o = Overdrive ID
-                        %p = Publisher
-                        %s = Series
-                        %s{STRING} = Will place STRING in folder name if book is in series, else nothing
-                        %S = Subtitle
-                        %S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing
-                        %t = Title
-                        %v = Volume (book in series)
-                        %y = Year published
+                        Format string specifying output folder(s), default is "%a/%y - %t".
+                        %a = Author(s).
+                        %n = Narrator(s).
+                        %i = ISBN.
+                        %o = Overdrive ID.
+                        %p = Publisher.
+                        %s = Series.
+                        %s{STRING} = Will place STRING in folder name if book is in series, else nothing.
+                        %S = Subtitle.
+                        %S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing.
+                        %t = Title.
+                        %v = Volume (book in series).
+                        %y = Year published.
   -rs, --replace-space  Replace spaces in folder path with underscores.
 </pre>
 
