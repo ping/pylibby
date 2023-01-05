@@ -268,13 +268,13 @@ class Libby:
 
     def download_audiobook_mp3(self, loan: dict, output_path: str, format_string,
                                callback_functions: list[Callable[[str, int], None]] = None,
-                               save_info=False, download_covers=True, embed_metadata=False, replace_space=False):
+                               save_info=False, download_covers=True, embed_metadata=False, replace_space=False,
+                               create_opf=False):
         # Workaround for getting audiobook without ODM
         audiobook_info = self.open_audiobook(loan["cardId"], loan["id"])
         if not os.path.exists(output_path):
             raise RuntimeError(f"Path does not exist: {output_path}")
 
-        final_path = ""
         if format_string is not None:
             final_path = os.path.join(output_path, self.get_download_path(audiobook_info["media_info"], format_string=format_string, replace_space=replace_space))
         else:
@@ -284,6 +284,20 @@ class Libby:
         if embed_metadata:
             tocout = self.get_toc_from_audiobook_info(audiobook_info)
             print("Converted Chapter Markers to OverDrive Format")
+
+        if save_info:
+            with open(os.path.join(final_path, "info.json"), "w") as w:
+                w.write(json.dumps(audiobook_info, indent=4))
+                print("Wrote info.json.")
+
+        if download_covers:
+            self.download_covers(loan, final_path)
+            print("Downloaded covers.")
+
+        if create_opf:
+            with open(os.path.join(final_path, "info.opf"), "w") as w:
+                w.write(self.create_opf_from_media_info(audiobook_info["media_info"]))
+                print("Wrote info.opf.")
 
         for download_url in \
                 [audiobook_info["audiobook_urls"]["urls"]["web"] + s["path"] for s in audiobook_info["openbook"]["spine"]]:
@@ -307,19 +321,12 @@ class Libby:
             if embed_metadata:
                 if filename in tocout:
                     self.embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info)
-                    print(f"Embedded tags in {filename}")
+                    print(f"Embedded tags in {filename}.")
                 else:
                     self.embed_tag_data(os.path.join(final_path, filename), "<Markers><Marker><Name>(continued)</Name><Time>0:00.000</Time></Marker></Markers>", audiobook_info)
                     print("no toc to embed, generated (continued) chapter marker, and embedded it.")
 
             time.sleep(random.random() * 2)
-
-        if save_info:
-            with open(os.path.join(final_path, "info.json"), "w") as w:
-                w.write(json.dumps(audiobook_info, indent=4))
-
-        if download_covers:
-            self.download_covers(loan, final_path)
 
     def embed_tag_data(self, filename: str, toc_entry_for_file: dict, audiobook_info: dict):
                 # open file for tag embedding
@@ -403,6 +410,56 @@ class Libby:
         timestamp = f"{minutes:02.0f}:{secs:06.03f}"
         return timestamp
 
+    def create_opf_from_media_info(self, media_info: dict) -> str:
+        # Create opf metadata. Not very elegant, but I don't think dicttoxml supports the attributes we need for this.
+        opf = """<?xml version='1.0' encoding='utf-8'?>
+<ns0:package xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:ns0='http://www.idpf.org/2007/opf' unique-identifier='BookId' version='2.0'>
+  <ns0:metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">"""
+        opf += f'\n    <dc:title>{media_info["title"]}</dc:title>'
+        if "subtitle" in media_info:
+            opf += f'\n    <dc:subtitle>{media_info["subtitle"]}</dc:subtitle>'
+        if "description" in media_info:
+            description = re.sub("<.*?>", "", media_info["description"].replace("<br>", "\n").replace("<BR>", "\n"))
+            opf += f'\n    <dc:description>{description}</dc:description>'
+        for a in self.get_author_by_media_info(media_info, ",").split(","):
+            if a:
+                opf += f'\n    <dc:creator opf:role="aut">{a}</dc:creator>'
+        for n in self.get_narrator_by_media_info(media_info, ",").split(","):
+            if n:
+                opf += f'\n    <dc:creator opf:role="nrt">{n}</dc:creator>'
+        if "publisher" in media_info:
+            opf += f'\n    <dc:publisher>{media_info["publisher"]["name"]}</dc:publisher>'
+        if "publishDate" in media_info:
+            opf += f'\n    <dc:date>{media_info["publishDate"]}</dc:date>'
+        if "languages" in media_info:
+            for lang in media_info["languages"]:
+                # Should this be id or name? "en" or "English"?
+                # https://www.w3.org/publishing/epub3/epub-packages.html#sec-opf-dclanguage suggests "id"/"en"
+                # "The metadata section MUST include at least one language element with a value conforming to [BCP47]."
+                # Can there be multiple dc:language, or should multiple languages be separated by "," or maybe "/"?
+                # opf += f'\n    <dc:language>{lang["id"]}</dc:language>'
+                opf += f'\n    <dc:language>{lang["name"]}</dc:language>'
+        if "subjects" in media_info:
+            for s in media_info["subjects"]:
+                opf += f'\n    <dc:subject>{s["name"]}</dc:subject>'
+        if "keywords" in media_info:
+            for k in media_info["keywords"]:
+                opf += f'\n    <dc:tag>{k}</dc:tag>'
+        if "detailedSeries" in media_info:
+            opf += f'\n    <ns0:meta name="calibre:series" content="{media_info["detailedSeries"]["seriesName"]}"/>'
+            opf += f'\n    <ns0:meta name="calibre:series_index" content="{media_info["detailedSeries"]["readingOrder"]}"/>'
+
+        # Adding overdrive id in case it is ever needed.
+        opf += f'\n    <dc:identifier opf:scheme="ODID">{media_info["id"]}</dc:identifier>'
+        for f in media_info["formats"]:
+            for i in f["identifiers"]:
+                if i["type"] == "ISBN":
+                    opf += f'\n    <dc:identifier opf:scheme="ISBN">{i["value"]}</dc:identifier>'
+                    opf += "\n  </ns0:metadata>\n</ns0:package>"
+                    return opf
+
+        return opf + "\n  </ns0:metadata>\n</ns0:package>"
+
     def get_filename(self, url: str) -> str:
         url_parsed = urllib.parse.unquote(url)
         url_parsed = url_parsed.split("#")[0]
@@ -425,7 +482,7 @@ class Libby:
                 with open(os.path.join(path_, c + ".jpg"), "wb") as w:
                     w.write(self.http_session.get(media_info["covers"][c]["href"]).content)
 
-    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_covers=True, get_odm=False, embed_metadata=False, format_string=False, replace_space=False):
+    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_covers=True, get_odm=False, embed_metadata=False, format_string=False, replace_space=False, create_opf=False):
         # Does not actually download ebook, only gets the ODM or ACSM for now.
         # Will however download audiobook-mp3, without ODM
         if not os.path.exists(output_path):
@@ -434,15 +491,15 @@ class Libby:
         format_is_available = any(f for f in loan["formats"] if f["id"] == format_id)
         if format_is_available:
             url = f"https://sentry-read.svc.overdrive.com/card/{loan['cardId']}/loan/{loan['id']}/fulfill/{format_id}"
+            media_info = self.get_media_info(loan["id"])
             if format_id == "audiobook-mp3":
                 if get_odm:
-                    download_path = ""
                     if format_string is not None:
-                        download_path = self.get_download_path(self.get_media_info(loan["id"]),format_string=format_string, replace_space=replace_space)
+                        download_path = self.get_download_path(media_info, format_string=format_string, replace_space=replace_space)
                     else:
-                        download_path = self.get_download_path(self.get_media_info(loan["id"], replace_space=replace_space))
+                        download_path = self.get_download_path(media_info, replace_space=replace_space)
                     final_path = os.path.join(output_path, download_path)
-                    if download or save_info:
+                    if download or save_info or create_opf:
                         os.makedirs(final_path, exist_ok=True)
                     fulfill = self.http_session.get(url).json()
                     if "fulfill" in fulfill:
@@ -453,7 +510,7 @@ class Libby:
                     else:
                         raise RuntimeError(f"Something went wrong when downloading odm: {fulfill}")
                 else:
-                    self.download_audiobook_mp3(loan, output_path, save_info=save_info, embed_metadata=embed_metadata, format_string=format_string, replace_space=replace_space)
+                    self.download_audiobook_mp3(loan, output_path, save_info=save_info, embed_metadata=embed_metadata, format_string=format_string, replace_space=replace_space, create_opf=create_opf)
             else:
                 #resp = self.http_session.get(url)
                 #print(resp)
@@ -462,13 +519,12 @@ class Libby:
                 fulfill = self.http_session.get(url).json()
                 if "fulfill" in fulfill:
                     fulfill_url = fulfill["fulfill"]["href"]
-                    download_path = ""
                     if format_string is not None:
-                        download_path = self.get_download_path(self.get_media_info(loan["id"]),format_string=format_string, replace_space=replace_space)
+                        download_path = self.get_download_path(media_info, format_string=format_string, replace_space=replace_space)
                     else:
-                        download_path = self.get_download_path(self.get_media_info(loan["id"]), replace_space=replace_space)
+                        download_path = self.get_download_path(media_info, replace_space=replace_space)
                     final_path = os.path.join(output_path,download_path)
-                    if download or save_info:
+                    if download or save_info or create_opf:
                         os.makedirs(final_path, exist_ok=True)
 
                     if format_id == "audiobook-overdrive":
@@ -491,9 +547,16 @@ class Libby:
                     if save_info:
                         with open(os.path.join(final_path, "loan.json"), "w") as w:
                             w.write(json.dumps(loan, indent=4))
+                            print("Wrote loan.json.")
+
+                    if create_opf:
+                        with open(os.path.join(final_path, "info.opf"), "w") as w:
+                            w.write(self.create_opf_from_media_info(media_info))
+                            print("Write info.opf.")
 
                     if download_covers:
                         self.download_covers(loan, final_path)
+                        print("Downloaded covers.")
 
                     return fulfill_url
 
@@ -527,19 +590,21 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--info", help="Print media info (JSON).", type=str, metavar="id")
     parser.add_argument("-j", "--json", help="Output verbose JSON instead of tables.", action="store_true")
     parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers.", action="store_true")
-    parser.add_argument("-ofs", "--output-format-string",help=('Format string specifying output folder(s), default is %%a/%%y - %%t\n'
-                          '%%a = Author(s)\n'
-                          '%%n = Narrator(s)\n'
-                          '%%i = ISBN\n'
-                          '%%o = Overdrive ID\n'
-                          '%%p = Publisher\n'
-                          '%%s = Series\n'
-                          '%%s{STRING} = Will place STRING in folder name if book is in series, else nothing\n'
-                          '%%S = Subtitle\n'
-                          '%%S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing\n'
-                          '%%t = Title\n'
-                          '%%v = Volume (book in series)\n'
-                          '%%y = Year published'), type=str, metavar="string")
+    parser.add_argument("-opf", "--create-opf", help="Create an OPF file with metadata when downloading a book.", action="store_true")
+    parser.add_argument("-dlo", "--download-opf", help="Generate an OPF file by title id.",  type=str, metavar="id")
+    parser.add_argument("-ofs", "--output-format-string",help=('Format string specifying output folder(s), default is "%%a/%%y - %%t".\n'
+                          '%%a = Author(s).\n'
+                          '%%n = Narrator(s).\n'
+                          '%%i = ISBN.\n'
+                          '%%o = Overdrive ID.\n'
+                          '%%p = Publisher.\n'
+                          '%%s = Series.\n'
+                          '%%s{STRING} = Will place STRING in folder name if book is in series, else nothing.\n'
+                          '%%S = Subtitle.\n'
+                          '%%S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing.\n'
+                          '%%t = Title.\n'
+                          '%%v = Volume (book in series).\n'
+                          '%%y = Year published.'), type=str, metavar="string")
     parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true")
     args = parser.parse_args()
 
@@ -606,7 +671,20 @@ if __name__ == "__main__":
 
         elif arg in ["-dl", "--download"]:
             print("Downloading", sys.argv[arg_pos + 1])
-            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output,args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata, format_string=args.output_format_string, replace_space=args.replace_space)
+            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output,args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata, format_string=args.output_format_string, replace_space=args.replace_space, create_opf=args.create_opf)
+
+        elif arg in ["-dlo", "--download-opf"]:
+            print("Downloading OPF for", sys.argv[arg_pos + 1])
+            media_info = L.get_media_info(sys.argv[arg_pos + 1])
+            opf = L.create_opf_from_media_info(media_info)
+            if args.output_format_string:
+                path = L.get_download_path(media_info, format_string=args.output_format_string, replace_space=args.replace_space)
+            else:
+                path = L.get_download_path(media_info, replace_space=args.replace_space)
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, "info.opf"), "w") as w:
+                w.write(opf)
+                print(f"Wrote info.opf to {path}.")
 
         elif arg in ["-r", "--return-book"]:
             L.return_book(sys.argv[arg_pos + 1])
