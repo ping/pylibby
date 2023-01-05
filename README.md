@@ -19,36 +19,46 @@ pipenv run python pylibby.py -h
 options:
   -h, --help            show this help message and exit
   -id path, --id-file path
-                        Path to id JSON (which you get from &apos;--code&apos;).
+                        Path to id JSON (which you get from '--code'. Defaults to id.json).
   -c 12345678, --code 12345678
                         Login with code.
   -o path, --output path
                         Output dir, will output to current dir if omitted.
-  -s &quot;search query&quot;, --search &quot;search query&quot;
+  -s "search query", --search "search query"
                         Search for book in your libraries.
-  -sa &quot;search query&quot;, --search-audiobook &quot;search query&quot;
+  -sa "search query", --search-audiobook "search query"
                         Search for audiobook in your libraries.
-  -se &quot;search query&quot;, --search-ebook &quot;search query&quot;
+  -se "search query", --search-ebook "search query"
                         Search for ebook in your libraries.
   -ls, --list-loans     List your current loans.
   -lsc, --list-cards    List your current cards.
   -b id, --borrow-book id
-                        Borrow book from the first library where it&apos;s available.
+                        Borrow book from the first library where it's available.
   -r id, --return-book id
                         Return book. If the same book is borrowed in multiple libraries this will only return the first one.
   -dl id, --download id
                         Download book or audiobook by title id. You need to have borrowed the book.
   -f id, --format id    Which format to download.
-  -odm                  Download the ODM instead of directly downloading mp3&apos;s for &apos;audiobook-mp3&apos;.
+  -odm                  Download the ODM instead of directly downloading mp3's for 'audiobook-mp3'.
   -si, --save-info      Save information about downloaded book.
   -i id, --info id      Print media info (JSON).
   -j, --json            Output verbose JSON instead of tables.
-  -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers
+  -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers.
   -ofs string, --output-format-string string
-                        Format string specifying output folders.
-  -nrs, --no_replace_space
-                        Does not replace spaces in folder path with underscores.
-  
+                        Format string specifying output folder(s), default is %a/%y - %t
+                        %a = Author(s)
+                        %n = Narrator(s)
+                        %i = ISBN
+                        %o = Overdrive ID
+                        %p = Publisher
+                        %s = Series
+                        %s{STRING} = Will place STRING in folder name if book is in series, else nothing
+                        %S = Subtitle
+                        %S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing
+                        %t = Title
+                        %v = Volume (book in series)
+                        %y = Year published
+  -rs, --replace-space  Replace spaces in folder path with underscores.
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
@@ -89,16 +99,16 @@ python pylibby.py -dl 654321 -f audiobook-mp3 -o /home/username/books
 When downloading an book, you can specify the output format using a custom
 format string.  Substitutions include:
 
-%t - title
-%a - author
-%s - series
-%S - subtitle
-%v - volume (book in series)
-%p - publisher
-%y - year published
-%n - narrator
-%i - isbn
-%o - ODID
+%t - title  
+%a - author  
+%s - series  
+%S - subtitle  
+%v - volume (book in series)  
+%p - publisher  
+%y - year published  
+%n - narrator  
+%i - ISBN  
+%o - Overdrive ID  
 
 Additionally, you can include text, but make it conditional on if the book is in
 a series.  To do so, simply include:
@@ -106,14 +116,15 @@ a series.  To do so, simply include:
 %s{/}
 
 Which will render to / if there is a series, but if the book is not in a series,
-will just disappear.  This similarly works on subtitle existence with %S
+will just disappear.
 
-By default, the output folder for a book will have spaces replaced with
-underscores.  To prevent this, simply add -nrs to the command line.
+This similarly works on subtitle existence with %S{STRING}
+
+Use -rs to change spaces in folder names to "_".
 
 Thus, an example is:
 ```bash
-python pylibby.py -dl 654321 -f audiobook-mp3 -ofs "%a/%t" -nrs
+python pylibby.py -dl 654321 -f audiobook-mp3 -ofs "%a/%t"
 ```
 
 Which will result in a folder structure like:
@@ -169,6 +180,7 @@ This tool has only been tested on Linux, I don't know if it will run on other OS
 ## Thanks to
 * Overdrive for their service.
 * The Norwegian libraries that are a part of Overdrive.
+* [Naleo Hyde](https://github.com/naleo/)
 
 
 ## Legal
