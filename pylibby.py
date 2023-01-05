@@ -217,7 +217,7 @@ class Libby:
     def get_narrator_by_media_info(self, media_info: dict, delim=" & ") -> str:
         return delim.join([creator["name"] for creator in media_info["creators"] if creator["role"] == "Narrator"])
 
-    def get_download_path(self, media_info: dict, format_string="%a/%s %v-%t-[%y]-[ODID %o]-[ISBN %i]", no_replace_space=False) -> str:
+    def get_download_path(self, media_info: dict, format_string="%a/%y - %t", no_replace_space=False) -> str:
         # this takes "%s{/}", and replaces it with "/", but only if the series
         # exists.  We do this to allow for creating subfolders, but only if there is a series.
         format_string = format_string.replace("%a", self.get_author_by_media_info(media_info))
@@ -225,7 +225,9 @@ class Libby:
         if "publishDate" in media_info:
             format_string = format_string.replace("%y", str(datetime.datetime.fromisoformat(media_info['publishDate']).year))
         else:
-            format_string = format_string.replace("%y", "") 
+            # Removing the stuff people usually put around. Maybe we can find a regex for this? Order is important.
+            for y in [" [%y] ", "[%y] - ", "[%y] ","[%y]","-%y-", " - %y - ", ".%y.", "%y - ", "%y-", "%y.", "%y"]:
+                format_string = format_string.replace(y, "")
         format_string = format_string.replace("%o", media_info['id'])
         format_string = format_string.replace("%p", media_info['publisher']['name'])
         format_string = format_string.replace("%n", self.get_narrator_by_media_info(media_info))
@@ -325,7 +327,7 @@ class Libby:
                 tag = file.tags
 
                 #create and add tags
-                author = TPE1(text=self.get_author_by_media_info(audiobook_info["media_info"],delim=","))
+                author = TPE1(text=self.get_author_by_media_info(audiobook_info["media_info"],delim="/"))
                 tag.add(author)
                 title = TIT2(text=audiobook_info["media_info"]["title"])
                 title_album = TALB(text=audiobook_info["media_info"]["title"])
@@ -337,11 +339,12 @@ class Libby:
                 publisher = TPUB(text=audiobook_info["media_info"]["publisher"]["name"])
                 tag.add(publisher)
                 # Year usage non-standardized, use both
-                year = TYER(text=str(datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).year))
-                year2 = TDRL(text=datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).strftime("%Y-%m-%d"))
-                tag.add(year)
-                tag.add(year2)
-                narrator = TCOM(text=self.get_narrator_by_media_info(audiobook_info["media_info"],delim=","))
+                if "publishDate" in audiobook_info["media_info"]:
+                    year = TYER(text=str(datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).year))
+                    year2 = TDRL(text=datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).strftime("%Y-%m-%d"))
+                    tag.add(year)
+                    tag.add(year2)
+                narrator = TCOM(text=self.get_narrator_by_media_info(audiobook_info["media_info"],delim="/"))
                 tag.add(narrator)
                 desc = COMM(lang='\x00\x00\x00', desc='', text=re.sub("<\\/?[BIbiPp]>","",html.unescape(audiobook_info["media_info"]["description"]).replace("<br>", "\n")))
                 tag.add(desc)
