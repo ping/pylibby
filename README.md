@@ -62,7 +62,7 @@ options:
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
-installed the requirements, "requests" and "tabulate". Minimum Python version is 3.11.
+installed the requirements, "requests", "tabulate", "dicttoxml" and "mutagen". Minimum Python version is 3.11.
 
 
 You need to log in before you can start using PyLibby. 
@@ -96,8 +96,8 @@ For audiobooks the format will always be "audiobook-mp3".
 python pylibby.py -dl 654321 -f audiobook-mp3 -o /home/username/books
 ```
 
-When downloading an book, you can specify the output format using a custom
-format string.  Substitutions include:
+When downloading a book, you can specify the output format using a custom
+format string. Substitutions include:
 
 %t - title  
 %a - author  
@@ -111,7 +111,7 @@ format string.  Substitutions include:
 %o - Overdrive ID  
 
 Additionally, you can include text, but make it conditional on if the book is in
-a series.  To do so, simply include:
+a series. To do so, simply include:
 
 %s{/}
 
