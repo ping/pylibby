@@ -420,7 +420,7 @@ class Libby:
             opf += f'\n    <dc:subtitle>{media_info["subtitle"]}</dc:subtitle>'
         if "description" in media_info:
             description = re.sub("<.*?>", "", media_info["description"].replace("<br>", "\n").replace("<BR>", "\n"))
-            opf += f'\n    <dc:description>{description}</dc:description>'
+            opf += f'\n    <dc:description>{html.unescape(description)}</dc:description>'
         for a in self.get_author_by_media_info(media_info, ",").split(","):
             if a:
                 opf += f'\n    <dc:creator opf:role="aut">{a}</dc:creator>'
@@ -446,8 +446,10 @@ class Libby:
             for k in media_info["keywords"]:
                 opf += f'\n    <dc:tag>{k}</dc:tag>'
         if "detailedSeries" in media_info:
-            opf += f'\n    <ns0:meta name="calibre:series" content="{media_info["detailedSeries"]["seriesName"]}"/>'
-            opf += f'\n    <ns0:meta name="calibre:series_index" content="{media_info["detailedSeries"]["readingOrder"]}"/>'
+            if "seriesName" in media_info["detailedSeries"]:
+                opf += f'\n    <ns0:meta name="calibre:series" content="{media_info["detailedSeries"]["seriesName"]}"/>'
+            if "readingOrder" in media_info["detailedSeries"]:
+                opf += f'\n    <ns0:meta name="calibre:series_index" content="{media_info["detailedSeries"]["readingOrder"]}"/>'
 
         # Adding overdrive id in case it is ever needed.
         opf += f'\n    <dc:identifier opf:scheme="ODID">{media_info["id"]}</dc:identifier>'
