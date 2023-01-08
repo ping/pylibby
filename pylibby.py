@@ -412,23 +412,26 @@ class Libby:
 
     def create_opf_from_media_info(self, media_info: dict) -> str:
         # Create opf metadata. Not very elegant, but I don't think dicttoxml supports the attributes we need for this.
+        def html_to_xml(html_string: str) -> str:
+            return dicttoxml.escape_xml(html.unescape(html_string))
+
         opf = """<?xml version='1.0' encoding='utf-8'?>
 <ns0:package xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:ns0='http://www.idpf.org/2007/opf' unique-identifier='BookId' version='2.0'>
   <ns0:metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">"""
-        opf += f'\n    <dc:title>{media_info["title"]}</dc:title>'
+        opf += f'\n    <dc:title>{html_to_xml(media_info["title"])}</dc:title>'
         if "subtitle" in media_info:
-            opf += f'\n    <dc:subtitle>{media_info["subtitle"]}</dc:subtitle>'
+            opf += f'\n    <dc:subtitle>{html_to_xml(media_info["subtitle"])}</dc:subtitle>'
         if "description" in media_info:
             description = re.sub("<.*?>", "", media_info["description"].replace("<br>", "\n").replace("<BR>", "\n"))
-            opf += f'\n    <dc:description>{html.unescape(description)}</dc:description>'
+            opf += f'\n    <dc:description>{html_to_xml(description)}</dc:description>'
         for a in self.get_author_by_media_info(media_info, ",").split(","):
             if a:
-                opf += f'\n    <dc:creator opf:role="aut">{a}</dc:creator>'
+                opf += f'\n    <dc:creator opf:role="aut">{html_to_xml(a)}</dc:creator>'
         for n in self.get_narrator_by_media_info(media_info, ",").split(","):
             if n:
-                opf += f'\n    <dc:creator opf:role="nrt">{n}</dc:creator>'
+                opf += f'\n    <dc:creator opf:role="nrt">{html_to_xml(n)}</dc:creator>'
         if "publisher" in media_info:
-            opf += f'\n    <dc:publisher>{media_info["publisher"]["name"]}</dc:publisher>'
+            opf += f'\n    <dc:publisher>{html_to_xml(media_info["publisher"]["name"])}</dc:publisher>'
         if "publishDate" in media_info:
             opf += f'\n    <dc:date>{media_info["publishDate"]}</dc:date>'
         if "languages" in media_info:
@@ -438,25 +441,26 @@ class Libby:
                 # "The metadata section MUST include at least one language element with a value conforming to [BCP47]."
                 # Can there be multiple dc:language, or should multiple languages be separated by "," or maybe "/"?
                 # opf += f'\n    <dc:language>{lang["id"]}</dc:language>'
-                opf += f'\n    <dc:language>{lang["name"]}</dc:language>'
+                opf += f'\n    <dc:language>{html_to_xml(lang["name"])}</dc:language>'
         if "subjects" in media_info:
             for s in media_info["subjects"]:
-                opf += f'\n    <dc:subject>{s["name"]}</dc:subject>'
+                opf += f'\n    <dc:subject>{html_to_xml(s["name"])}</dc:subject>'
         if "keywords" in media_info:
             for k in media_info["keywords"]:
-                opf += f'\n    <dc:tag>{k}</dc:tag>'
+                opf += f'\n    <dc:tag>{html_to_xml(k)}</dc:tag>'
         if "detailedSeries" in media_info:
             if "seriesName" in media_info["detailedSeries"]:
-                opf += f'\n    <ns0:meta name="calibre:series" content="{media_info["detailedSeries"]["seriesName"]}"/>'
+                opf += f'\n    <ns0:meta name="calibre:series" content="{html_to_xml(media_info["detailedSeries"]["seriesName"])}"/>'
             if "readingOrder" in media_info["detailedSeries"]:
-                opf += f'\n    <ns0:meta name="calibre:series_index" content="{media_info["detailedSeries"]["readingOrder"]}"/>'
+                opf += f'\n    <ns0:meta name="calibre:series_index" content="{html_to_xml(media_info["detailedSeries"]["readingOrder"])}"/>'
 
         # Adding overdrive id in case it is ever needed.
-        opf += f'\n    <dc:identifier opf:scheme="ODID">{media_info["id"]}</dc:identifier>'
+        if "id" in media_info:
+            opf += f'\n    <dc:identifier opf:scheme="ODID">{html_to_xml(media_info["id"])}</dc:identifier>'
         for f in media_info["formats"]:
             for i in f["identifiers"]:
                 if i["type"] == "ISBN":
-                    opf += f'\n    <dc:identifier opf:scheme="ISBN">{i["value"]}</dc:identifier>'
+                    opf += f'\n    <dc:identifier opf:scheme="ISBN">{html_to_xml(i["value"])}</dc:identifier>'
                     opf += "\n  </ns0:metadata>\n</ns0:package>"
                     return opf
 
