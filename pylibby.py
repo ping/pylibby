@@ -295,9 +295,9 @@ class Libby:
             print("Downloaded cover.")
 
         if create_opf:
-            with open(os.path.join(final_path, "info.opf"), "w") as w:
+            with open(os.path.join(final_path, "metadata.opf"), "w") as w:
                 w.write(self.create_opf_from_media_info(audiobook_info["media_info"]))
-                print("Wrote info.opf.")
+                print("Wrote metadata.opf.")
 
         for download_url in \
                 [audiobook_info["audiobook_urls"]["urls"]["web"] + s["path"] for s in audiobook_info["openbook"]["spine"]]:
@@ -557,9 +557,9 @@ class Libby:
                             print("Wrote loan.json.")
 
                     if create_opf:
-                        with open(os.path.join(final_path, "info.opf"), "w") as w:
+                        with open(os.path.join(final_path, "metadata.opf"), "w") as w:
                             w.write(self.create_opf_from_media_info(media_info))
-                            print("Write info.opf.")
+                            print("Wrote metadata.opf.")
 
                     if download_cover:
                         self.download_cover(loan, final_path)
@@ -689,9 +689,9 @@ if __name__ == "__main__":
             else:
                 path = L.get_download_path(media_info, replace_space=args.replace_space)
             os.makedirs(path, exist_ok=True)
-            with open(os.path.join(path, "info.opf"), "w") as w:
+            with open(os.path.join(path, "metadata.opf"), "w") as w:
                 w.write(opf)
-                print(f"Wrote info.opf to {path}.")
+                print(f"Wrote metadata.opf to {path}.")
 
         elif arg in ["-r", "--return-book"]:
             L.return_book(sys.argv[arg_pos + 1])
