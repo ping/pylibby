@@ -548,6 +548,12 @@ class Libby:
                                 print(f"Downloaded acsm file to {w.name}.")
                         else:
                             print(fulfill_url)
+                    elif format_id == "ebook-epub-open":
+                        #Keep getting 403 when using requests, using urllib.request instead which seems to work.
+                        from urllib import request
+                        filename = os.path.join(final_path, self.get_filename(fulfill_url))
+                        request.urlretrieve(fulfill_url, filename)
+                        print("Downloaded:", filename)
                     else:
                         print(fulfill_url)
 
