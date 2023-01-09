@@ -268,7 +268,7 @@ class Libby:
 
     def download_audiobook_mp3(self, loan: dict, output_path: str, format_string,
                                callback_functions: list[Callable[[str, int], None]] = None,
-                               save_info=False, download_covers=True, embed_metadata=False, replace_space=False,
+                               save_info=False, download_cover=True, embed_metadata=False, replace_space=False,
                                create_opf=False):
         # Workaround for getting audiobook without ODM
         audiobook_info = self.open_audiobook(loan["cardId"], loan["id"])
@@ -290,9 +290,9 @@ class Libby:
                 w.write(json.dumps(audiobook_info, indent=4))
                 print("Wrote info.json.")
 
-        if download_covers:
-            self.download_covers(loan, final_path)
-            print("Downloaded covers.")
+        if download_cover:
+            self.download_cover(loan, final_path)
+            print("Downloaded cover.")
 
         if create_opf:
             with open(os.path.join(final_path, "info.opf"), "w") as w:
@@ -482,13 +482,14 @@ class Libby:
     def get_formats_for_loaned_book_or_media_info(self, loan: dict) -> list[str]:
         return [f["id"] for f in loan["formats"]]
 
-    def download_covers(self, media_info: dict, path_: str):
+    def download_cover(self, media_info: dict, path_: str):
         if "covers" in media_info:
-            for c in media_info["covers"].keys():
-                with open(os.path.join(path_, c + ".jpg"), "wb") as w:
-                    w.write(self.http_session.get(media_info["covers"][c]["href"]).content)
+            best = next(iter(sorted(media_info["covers"].items(), key=lambda i: i[1]["width"], reverse=True)), None)
+            if best:
+                with open(os.path.join(path_, best[0] + ".jpg"), "wb") as w:
+                    w.write(self.http_session.get(best[1]["href"]).content)
 
-    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_covers=True, get_odm=False, embed_metadata=False, format_string=False, replace_space=False, create_opf=False):
+    def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_cover=True, get_odm=False, embed_metadata=False, format_string=False, replace_space=False, create_opf=False):
         # Does not actually download ebook, only gets the ODM or ACSM for now.
         # Will however download audiobook-mp3, without ODM
         if not os.path.exists(output_path):
@@ -560,9 +561,9 @@ class Libby:
                             w.write(self.create_opf_from_media_info(media_info))
                             print("Write info.opf.")
 
-                    if download_covers:
-                        self.download_covers(loan, final_path)
-                        print("Downloaded covers.")
+                    if download_cover:
+                        self.download_cover(loan, final_path)
+                        print("Downloaded cover.")
 
                     return fulfill_url
 
