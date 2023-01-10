@@ -484,10 +484,19 @@ class Libby:
 
     def download_cover(self, media_info: dict, path_: str):
         if "covers" in media_info:
-            best = next(iter(sorted(media_info["covers"].items(), key=lambda i: i[1]["width"], reverse=True)), None)
-            if best:
-                with open(os.path.join(path_, best[0] + ".jpg"), "wb") as w:
-                    w.write(self.http_session.get(best[1]["href"]).content)
+            try:
+                best = next(iter(sorted(media_info["covers"].items(), key=lambda i: i[1]["width"], reverse=True)), None)
+                if best:
+                    with open(os.path.join(path_, best[0] + ".jpg"), "wb") as w:
+                        w.write(self.http_session.get(best[1]["href"]).content)
+                        return
+            except KeyError:
+                print("Cover has unspecified width!")
+
+            # Try getting cover510Wide if it fails to do so automatically. Sometimes "width" is missing.
+            if "cover510Wide" in media_info["covers"]:
+                with open(os.path.join(path_, "cover510Wide.jpg"), "wb") as w:
+                    w.write(self.http_session.get(media_info["covers"]["cover510Wide"]["href"]).content)
 
     def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_cover=True, get_odm=False, embed_metadata=False, format_string=False, replace_space=False, create_opf=False):
         # Does not actually download ebook, only gets the ODM or ACSM for now.
