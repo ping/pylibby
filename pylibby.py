@@ -35,12 +35,18 @@ import datetime
 import argparse
 from tabulate import tabulate
 
+
 class Libby:
     id_path = None
+    archive = None
 
-    def __init__(self, id_path: str, code: str = None):
+    def __init__(self, id_path: str, archive_path: str = "", code: str = None):
         self.id_path = id_path
         self.http_session = requests.Session()
+        self.archive_path = archive_path
+        if archive_path:
+            self.load_archive()
+            print("Loaded archive", archive_path)
 
         headers = {
             "Accept": "application/json",
@@ -299,34 +305,43 @@ class Libby:
                 w.write(self.create_opf_from_media_info(audiobook_info["media_info"]))
                 print("Wrote metadata.opf.")
 
-        for download_url in \
-                [audiobook_info["audiobook_urls"]["urls"]["web"] + s["path"] for s in audiobook_info["openbook"]["spine"]]:
-            resp = self.http_session.get(download_url, timeout=10, stream=True)
+        download_urls = [audiobook_info["audiobook_urls"]["urls"]["web"] + s["path"] for s in audiobook_info["openbook"]["spine"]]
 
+        filenames = [self.get_filename(url) for url in download_urls]
+
+        for download_url in download_urls:
             filename = self.get_filename(download_url)
-            with open(os.path.join(final_path, filename), "wb") as w:
-                downloaded = 0
-                mb = 0
-                for chunk in resp.iter_content(1024):
-                    w.write(chunk)
-                    downloaded += 1024
-                    if downloaded > 1024 * 1000:
-                        mb += 1
-                        downloaded = 0
-                        if callback_functions:
-                            for f in callback_functions:
-                                f(filename, mb)
-                        else:
-                            print(f"{filename}: Downloaded {mb}MB.")
-            if embed_metadata:
-                if filename in tocout:
-                    self.embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info)
-                    print(f"Embedded tags in {filename}.")
-                else:
-                    self.embed_tag_data(os.path.join(final_path, filename), "<Markers><Marker><Name>(continued)</Name><Time>0:00.000</Time></Marker></Markers>", audiobook_info)
-                    print("no toc to embed, generated (continued) chapter marker, and embedded it.")
+            if self.should_download(loan["id"], filename):
+                resp = self.http_session.get(download_url, timeout=10, stream=True)
+                with open(os.path.join(final_path, filename), "wb") as w:
+                    downloaded = 0
+                    mb = 0
+                    for chunk in resp.iter_content(1024):
+                        w.write(chunk)
+                        downloaded += 1024
+                        if downloaded > 1024 * 1000:
+                            mb += 1
+                            downloaded = 0
+                            if callback_functions:
+                                for f in callback_functions:
+                                    f(filename, mb)
+                            else:
+                                print(f"{filename}: Downloaded {mb}MB.")
+                if embed_metadata:
+                    if filename in tocout:
+                        self.embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info)
+                        print(f"Embedded tags in {filename}.")
+                    else:
+                        self.embed_tag_data(os.path.join(final_path, filename), "<Markers><Marker><Name>(continued)</Name><Time>0:00.000</Time></Marker></Markers>", audiobook_info)
+                        print("no toc to embed, generated (continued) chapter marker, and embedded it.")
 
-            time.sleep(random.random() * 2)
+                time.sleep(random.random() * 2)
+
+                self.add_to_archive(loan["id"], filename, loan["firstCreatorName"] if "firstCreatorName" in loan else L.get_author(loan["id"]), loan["title"] if "title" in loan else None)
+
+        # If is finished, store it in archive. is_downloaded will wite Finished=True if completely downloaded.
+        if self.is_downloaded(loan["id"], filenames):
+            print(f"Finished downloading {loan['id']} and stored it in archive.")
 
     def embed_tag_data(self, filename: str, toc_entry_for_file: dict, audiobook_info: dict):
                 # open file for tag embedding
@@ -504,6 +519,12 @@ class Libby:
         if not os.path.exists(output_path):
             raise RuntimeError("Path does not exist: ", output_path)
 
+        if self.archive_path:
+            self.load_archive()
+            if self.is_downloaded(loan["id"]):
+                print(f"Book has already been downloaded and stored in archive: {loan['id']}")
+                return
+
         format_is_available = any(f for f in loan["formats"] if f["id"] == format_id)
         if format_is_available:
             url = f"https://sentry-read.svc.overdrive.com/card/{loan['cardId']}/loan/{loan['id']}/fulfill/{format_id}"
@@ -519,10 +540,15 @@ class Libby:
                         os.makedirs(final_path, exist_ok=True)
                     fulfill = self.http_session.get(url).json()
                     if "fulfill" in fulfill:
-                        fulfill_url = fulfill["fulfill"]["href"]
-                        with open(os.path.join(final_path, loan["id"] + ".odm"), "wb") as w:
-                            w.write(self.http_session.get(fulfill_url).content)
-                            print(f"Downloaded odm file to {w.name}.")
+                        if download:
+                            fulfill_url = fulfill["fulfill"]["href"]
+                            if self.should_download(loan["id"], loan["id"] + ".odm"):
+                                with open(os.path.join(final_path, loan["id"] + ".odm"), "wb") as w:
+                                    w.write(self.http_session.get(fulfill_url).content)
+                                    print(f"Downloaded odm file to {w.name}.")
+                                    L.add_to_archive(loan["id"], os.path.basename(w.name), loan["firstCreatorName"] if "firstCreatorName" in loan else L.get_author(loan["id"]), loan["title"] if "title" in loan else None)
+                            if L.is_downloaded(loan["id"], [os.path.basename(w.name)]):
+                                print(f"Added {loan['id']} to archive.")
                     else:
                         raise RuntimeError(f"Something went wrong when downloading odm: {fulfill}")
                 else:
@@ -552,9 +578,13 @@ class Libby:
                     elif format_id == "ebook-epub-adobe":
                         print("Will download acsm file, use a tool like Knock (https://github.com/agschaid/knock) to get your book.")
                         if download:
-                            with open(os.path.join(final_path, self.get_filename(fulfill_url)), "wb") as w:
-                                w.write(self.http_session.get(fulfill_url).content)
-                                print(f"Downloaded acsm file to {w.name}.")
+                            if self.should_download(loan["id"], os.path.basename(os.path.join(final_path, self.get_filename(fulfill_url)))):
+                                with open(os.path.join(final_path, self.get_filename(fulfill_url)), "wb") as w:
+                                    w.write(self.http_session.get(fulfill_url).content)
+                                    print(f"Downloaded acsm file to {w.name}.")
+                                    L.add_to_archive(loan["id"], os.path.basename(w.name), loan["firstCreatorName"] if "firstCreatorName" in loan else L.get_author(loan["id"]), loan["title"] if "title" in loan else None)
+                            if L.is_downloaded(loan["id"], [os.path.basename(os.path.join(final_path, self.get_filename(fulfill_url)))]):
+                                print(f"Added {loan['id']} to archive.")
                         else:
                             print(fulfill_url)
                     elif format_id == "ebook-epub-open":
@@ -562,8 +592,12 @@ class Libby:
                             #Keep getting 403 when using requests, using urllib.request instead which seems to work.
                             from urllib import request
                             filename = os.path.join(final_path, self.get_filename(fulfill_url))
-                            request.urlretrieve(fulfill_url, filename)
-                            print("Downloaded:", filename)
+                            if self.should_download(loan["id"], os.path.basename(filename)):
+                                request.urlretrieve(fulfill_url, filename)
+                                print("Downloaded:", filename)
+                                L.add_to_archive(loan["id"], os.path.basename(filename), loan["firstCreatorName"] if "firstCreatorName" in loan else L.get_author(loan["id"]), loan["title"] if "title" in loan else None)
+                            if L.is_downloaded(loan["id"], [os.path.basename(filename)]):
+                                print(f"Stored {loan['id']} as Finished in archive.")
                         else:
                             print(fulfill_url)
                     else:
@@ -591,6 +625,77 @@ class Libby:
         else:
             raise RuntimeError(f"Format {format_id} not available for title {loan['id']}. Available formats: {str([f['id'] for f in loan['formats']])}.")
 
+    def load_archive(self):
+        if self.archive_path:
+            if os.path.isfile(self.archive_path):
+                with open(self.archive_path, "r") as r:
+                    self.archive = json.loads(r.read())
+
+            # Create archive if it doesn't exist.
+            else:
+                self.archive = {}
+                self.write_archive()
+
+    def add_to_archive(self, title_id: str, filename: str, author: str = None, title: str = None):
+        if self.archive_path:
+            self.load_archive()
+            if title_id not in self.archive:
+                self.archive[title_id] = {"Parts": [], "Finished": False}
+                if author:
+                    self.archive[title_id]["Author"] = author
+                if title:
+                    self.archive[title_id]["Title"] = title
+
+            if filename not in self.archive[title_id]["Parts"]:
+                self.archive[title_id]["Parts"].append(filename)
+                print(f"Added {title_id} - {filename} to archive.")
+
+            self.write_archive()
+            print(f"Added {title_id} to archive.")
+
+    def write_archive(self):
+        if self.archive_path:
+            with open(self.archive_path, "w") as w:
+                w.write(json.dumps(self.archive, indent=4, sort_keys=True))
+        else:
+            print("No archive file specified, not writing archive.")
+
+    def is_downloaded(self, title_id, filenames: list = None):
+        if self.archive_path:
+            self.load_archive()
+            if title_id in self.archive:
+                if self.archive[title_id]["Finished"]:
+                    return True
+                if filenames:
+                    if "Parts" in self.archive[title_id]:
+                        if len(filenames) == len(self.archive[title_id]["Parts"]):
+                            self.archive[title_id]["Finished"] = True
+                            print(title_id, "Was finished, but not marked. Fixing...")
+                            self.write_archive()
+                            return True
+
+    def should_download(self, title_id: str, filename: str) -> bool:
+        if self.archive_path:
+            self.load_archive()
+            if title_id not in self.archive:
+                print("Title: ", title_id, " not in archive.")
+                return True
+            else:
+                if self.archive[title_id]["Finished"]:
+                    print(f"Title: {title_id} was already completely downloaded.")
+                    return False
+                else:
+                    if filename in self.archive[title_id]["Parts"]:
+                        print(f"Title: {title_id} - {filename} was already downloaded.")
+                        return False
+                    else:
+                        print(f"Title: {title_id} was not finished, {filename} was missing, downloading.")
+                        return True
+
+        # Should always download if no archive specified.
+        else:
+            return True
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -613,6 +718,7 @@ if __name__ == "__main__":
     parser.add_argument("-odm", help="Download the ODM instead of directly downloading mp3's for 'audiobook-mp3'.", action="store_true")
     parser.add_argument("-si", "--save-info", help="Save information about downloaded book.", action="store_true")
     parser.add_argument("-i", "--info", help="Print media info (JSON).", type=str, metavar="id")
+    parser.add_argument("-a", "--archive", help="Path to archive file. The archive keeps track of what is already downloaded. Defaults to archive.json",default="archive.json", type=str, metavar="path")
     parser.add_argument("-j", "--json", help="Output verbose JSON instead of tables.", action="store_true")
     parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers.", action="store_true")
     parser.add_argument("-opf", "--create-opf", help="Create an OPF file with metadata when downloading a book.", action="store_true")
@@ -633,7 +739,8 @@ if __name__ == "__main__":
     parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true")
     args = parser.parse_args()
 
-    L = Libby(args.id_file, code=args.code)
+    L = Libby(args.id_file, code=args.code, archive_path=args.archive)
+
     def create_table(media_infos: list, narrators=True):
         table = []
         for m in media_infos:
