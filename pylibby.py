@@ -35,6 +35,8 @@ import datetime
 import argparse
 from tabulate import tabulate
 
+VERSION = "0.2.0"
+
 
 class Libby:
     id_path = None
@@ -700,7 +702,7 @@ class Libby:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='PyLibby',
-        description='CLI for Libby',
+        description=f'CLI for Libby v{VERSION}',
         formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("-id", "--id-file", help="Path to id JSON (which you get from '--code'. Defaults to id.json).", default="id.json", metavar="path")
@@ -737,7 +739,11 @@ if __name__ == "__main__":
                           '%%v = Volume (book in series).\n'
                           '%%y = Year published.'), type=str, metavar="string")
     parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true")
+    parser.add_argument("-v", "--version", help="Print version.", action="store_true")
     args = parser.parse_args()
+    if args.version:
+        print(f"PyLibby {VERSION}")
+        quit()
 
     L = Libby(args.id_file, code=args.code, archive_path=args.archive)
 

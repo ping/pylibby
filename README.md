@@ -42,6 +42,8 @@ options:
   -odm                  Download the ODM instead of directly downloading mp3's for 'audiobook-mp3'.
   -si, --save-info      Save information about downloaded book.
   -i id, --info id      Print media info (JSON).
+  -a path, --archive path
+                        Path to archive file. The archive keeps track of what is already downloaded. Defaults to archive.json
   -j, --json            Output verbose JSON instead of tables.
   -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers.
   -opf, --create-opf    Create an OPF file with metadata when downloading a book.
@@ -62,6 +64,7 @@ options:
                         %v = Volume (book in series).
                         %y = Year published.
   -rs, --replace-space  Replace spaces in folder path with underscores.
+  -v, --version         Print version.
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
