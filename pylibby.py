@@ -35,7 +35,7 @@ import datetime
 import argparse
 from tabulate import tabulate
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 
 class Libby:
@@ -549,7 +549,7 @@ class Libby:
                                     w.write(self.http_session.get(fulfill_url).content)
                                     print(f"Downloaded odm file to {w.name}.")
                                     L.add_to_archive(loan["id"], os.path.basename(w.name), loan["firstCreatorName"] if "firstCreatorName" in loan else L.get_author(loan["id"]), loan["title"] if "title" in loan else None)
-                            if L.is_downloaded(loan["id"], [os.path.basename(w.name)]):
+                            if L.is_downloaded(loan["id"], [loan["id"] + ".odm"]):
                                 print(f"Added {loan['id']} to archive.")
                     else:
                         raise RuntimeError(f"Something went wrong when downloading odm: {fulfill}")
