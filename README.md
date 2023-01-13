@@ -175,7 +175,7 @@ and use something like [Knock](https://web.archive.org/web/20221016154220/https:
 Unfortunately it was removed from GitHub, but you can still download it [here](https://web.archive.org/web/20221020182238/https://github.com/BentonEdmondson/knock/releases).
 Most other formats will just print out a link you can open in your browser.
 
-This tool has only been tested on Linux, I don't know if it will run on other OS's.
+This tool has only been tested on Linux and macOS (thanks [dhnyny](https://github.com/dhnyny)).
 
 
 ## Info
