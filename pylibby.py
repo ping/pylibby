@@ -35,7 +35,7 @@ import datetime
 import argparse
 from tabulate import tabulate
 
-VERSION = "0.2.1"
+VERSION = "0.3.0"
 
 
 class Libby:
@@ -716,7 +716,8 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--borrow-book", help="Borrow book from the first library where it's available.", metavar="id")
     parser.add_argument("-r", "--return-book", help="Return book. If the same book is borrowed in multiple libraries this will only return the first one.", metavar="id")
     parser.add_argument("-dl", "--download", help="Download book or audiobook by title id. You need to have borrowed the book.", metavar="id")
-    parser.add_argument("-f", "--format", help="Which format to download.", type=str, metavar="id", required="-dl" in sys.argv or "--download" in sys.argv)
+    parser.add_argument("-f", "--format", help="Which format to download with -dl.", type=str, metavar="id", required="-dl" in sys.argv or "--download" in sys.argv)
+    parser.add_argument("-dla", "--download-all", help="Download all loans with the specified format. Does not consider -f.", metavar="format")
     parser.add_argument("-odm", help="Download the ODM instead of directly downloading mp3's for 'audiobook-mp3'.", action="store_true")
     parser.add_argument("-si", "--save-info", help="Save information about downloaded book.", action="store_true")
     parser.add_argument("-i", "--info", help="Print media info (JSON).", type=str, metavar="id")
@@ -809,7 +810,17 @@ if __name__ == "__main__":
 
         elif arg in ["-dl", "--download"]:
             print("Downloading", sys.argv[arg_pos + 1])
-            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output,args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata, format_string=args.output_format_string, replace_space=args.replace_space, create_opf=args.create_opf)
+            L.download_loan(L.get_loan(sys.argv[arg_pos + 1]), args.format, args.output, args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata, format_string=args.output_format_string, replace_space=args.replace_space, create_opf=args.create_opf)
+
+        elif arg in ["-dla", "--download-all"]:
+            format_to_dl = sys.argv[arg_pos + 1]
+            print("Downloading all loans with format", format_to_dl)
+            for loan in L.get_loans():
+                formats = L.get_formats_for_loaned_book_or_media_info(loan)
+                if format_to_dl in formats:
+                    L.download_loan(loan, format_to_dl, args.output, args.save_info, get_odm=args.odm, embed_metadata=args.embed_metadata, format_string=args.output_format_string, replace_space=args.replace_space, create_opf=args.create_opf)
+                else:
+                    print(f"Not getting {loan['id']} - {loan['title']}.")
 
         elif arg in ["-dlo", "--download-opf"]:
             print("Downloading OPF for", sys.argv[arg_pos + 1])

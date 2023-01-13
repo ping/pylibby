@@ -38,7 +38,9 @@ options:
                         Return book. If the same book is borrowed in multiple libraries this will only return the first one.
   -dl id, --download id
                         Download book or audiobook by title id. You need to have borrowed the book.
-  -f id, --format id    Which format to download.
+  -f id, --format id    Which format to download with -dl.
+  -dla format, --download-all format
+                        Download all loans with the specified format. Does not consider -f.
   -odm                  Download the ODM instead of directly downloading mp3's for 'audiobook-mp3'.
   -si, --save-info      Save information about downloaded book.
   -i id, --info id      Print media info (JSON).
