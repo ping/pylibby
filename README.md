@@ -19,7 +19,7 @@ pipenv run python pylibby.py -h
 options:
   -h, --help            show this help message and exit
   -id path, --id-file path
-                        Path to id JSON (which you get from '--code'. Defaults to id.json).
+                        Path to id JSON (which you get from '--code'. Defaults to ./config/id.json).
   -c 12345678, --code 12345678
                         Login with code.
   -o path, --output path
@@ -45,7 +45,7 @@ options:
   -si, --save-info      Save information about downloaded book.
   -i id, --info id      Print media info (JSON).
   -a path, --archive path
-                        Path to archive file. The archive keeps track of what is already downloaded. Defaults to archive.json
+                        Path to archive file. The archive keeps track of what is already downloaded. Defaults to ./config/archive.json
   -j, --json            Output verbose JSON instead of tables.
   -e, --embed-metadata  Embeds metadata in MP3 files, including chapter markers.
   -opf, --create-opf    Create an OPF file with metadata when downloading a book.
