@@ -1,0 +1,19 @@
+version: '3.9'
+services:
+  pylibby:
+    build: .
+    container_name: pylibby
+    environment:
+      - "CODE=00000000"  # Enter the code you get from the app here before running, only needed the first time. Be quick, it expires in 1 minute.
+      - "CRON_SCHEDULE=15 4 * * *"  #Go to https://crontab.guru for help with cron.
+      - "DOWNLOAD_ALL=audiobook-mp3"
+      #- "SAVE_INFO=yes"  #Comment out what you don't need like this
+      - "EMBED_METADATA=yes"
+      - "CREATE_OPF=yes"
+      - "OUTPUT_FORMAT_STRING=%a/%y - %t"
+      - "ARCHIVE=/config/archive.json"
+      - "ID=/config/id.json"
+      - "OUTPUT=/audiobooks"
+    volumes:
+      - ./Books/Audiobooks:/audiobooks
+      - ./config:/config

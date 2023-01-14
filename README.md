@@ -167,6 +167,34 @@ You can chain together multiple arguments like this:
 python pylibby.py -b 87654321 -b 12345678 -ls -dl 12345678 -f audiobook-mp3 -r 12345678 -ls
 ```
 
+## Environment variables
+PyLibby can take some environment variables. These are:
+* CODE - code that you get from the Libby app
+* DOWNLOAD_ALL - format
+* SAVE_INFO - save json information about downloaded books, value can be anything
+* EMBED_METADATA - embed metadata in mp3 files, value can be anything
+* CREATE_OPF - create metadata opf when downloading, value can be anything
+* OUTPUT_FORMAT_STRING - output format string
+* ARCHIVE - path to archive.json
+* ID - path to id.json
+* OUTPUT - output path
+
+These can be used like this:
+```bash
+CODE=12345678 DOWNLOAD_ALL=audiobook-mp3 EMBED_METADATA=yes CREATE_OPF=yes ARCHIVE="./config/archive.json" OUTPUT="./Books" python pylibby.py
+```
+
+## Docker and cron
+You can schedule --download-all with cron so that you always have your books ready.
+To make this easier you can use the provided docker-compose file.
+Open docker-compose.yml in any text editor and edit it to suit your needs.
+When you are done, go into the Libby app on your phone or in the browser and get a new code.
+Enter the code where it says CODE=00000000 in the file, then quickly(!) run:
+```bash
+docker-compose up -d
+```
+You have to be fast or else the code will expire.
+
 
 ## Doesn't work?
 As I mainly use Libby for audiobooks this tool is focused on that. 

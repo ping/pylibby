@@ -2,3 +2,6 @@
 Pipfile.lock
 id.json
 archive.json
+Books
+config/*
+!config/.gitkeep

@@ -35,7 +35,7 @@ import datetime
 import argparse
 from tabulate import tabulate
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 
 class Libby:
@@ -705,9 +705,9 @@ if __name__ == "__main__":
         description=f'CLI for Libby v{VERSION}',
         formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("-id", "--id-file", help="Path to id JSON (which you get from '--code'. Defaults to id.json).", default="id.json", metavar="path")
-    parser.add_argument("-c", "--code", help="Login with code.", type=int, metavar="12345678")
-    parser.add_argument("-o", "--output", help="Output dir, will output to current dir if omitted.", default=".", metavar="path")
+    parser.add_argument("-id", "--id-file", help="Path to id JSON (which you get from '--code'. Defaults to ./config/id.json).", default=os.getenv("ID", "./config/id.json"), metavar="path")
+    parser.add_argument("-c", "--code", help="Login with code.", type=int, metavar="12345678", default=os.getenv("CODE"))
+    parser.add_argument("-o", "--output", help="Output dir, will output to current dir if omitted.", default=os.getenv("OUTPUT", "."), metavar="path")
     parser.add_argument("-s", "--search", help="Search for book in your libraries.", metavar='"search query"')
     parser.add_argument("-sa", "--search-audiobook", help="Search for audiobook in your libraries.", metavar='"search query"')
     parser.add_argument("-se", "--search-ebook", help="Search for ebook in your libraries.", metavar='"search query"')
@@ -717,14 +717,14 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--return-book", help="Return book. If the same book is borrowed in multiple libraries this will only return the first one.", metavar="id")
     parser.add_argument("-dl", "--download", help="Download book or audiobook by title id. You need to have borrowed the book.", metavar="id")
     parser.add_argument("-f", "--format", help="Which format to download with -dl.", type=str, metavar="id", required="-dl" in sys.argv or "--download" in sys.argv)
-    parser.add_argument("-dla", "--download-all", help="Download all loans with the specified format. Does not consider -f.", metavar="format")
+    parser.add_argument("-dla", "--download-all", help="Download all loans with the specified format. Does not consider -f.", metavar="format", default=os.getenv("DOWNLOAD_ALL"))
     parser.add_argument("-odm", help="Download the ODM instead of directly downloading mp3's for 'audiobook-mp3'.", action="store_true")
-    parser.add_argument("-si", "--save-info", help="Save information about downloaded book.", action="store_true")
+    parser.add_argument("-si", "--save-info", help="Save information about downloaded book.", action="store_true", default=os.getenv("SAVE_INFO"))
     parser.add_argument("-i", "--info", help="Print media info (JSON).", type=str, metavar="id")
-    parser.add_argument("-a", "--archive", help="Path to archive file. The archive keeps track of what is already downloaded. Defaults to archive.json",default="archive.json", type=str, metavar="path")
+    parser.add_argument("-a", "--archive", help="Path to archive file. The archive keeps track of what is already downloaded. Defaults to ./config/archive.json", default=os.getenv("ARCHIVE", "./config/archive.json"), type=str, metavar="path")
     parser.add_argument("-j", "--json", help="Output verbose JSON instead of tables.", action="store_true")
-    parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers.", action="store_true")
-    parser.add_argument("-opf", "--create-opf", help="Create an OPF file with metadata when downloading a book.", action="store_true")
+    parser.add_argument("-e", "--embed-metadata", help="Embeds metadata in MP3 files, including chapter markers.", action="store_true", default=os.getenv("EMBED_METADATA"))
+    parser.add_argument("-opf", "--create-opf", help="Create an OPF file with metadata when downloading a book.", action="store_true", default=os.getenv("CREATE_OPF"))
     parser.add_argument("-dlo", "--download-opf", help="Generate an OPF file by title id.",  type=str, metavar="id")
     parser.add_argument("-ofs", "--output-format-string",help=('Format string specifying output folder(s), default is "%%a/%%y - %%t".\n'
                           '%%a = Author(s).\n'
@@ -738,8 +738,8 @@ if __name__ == "__main__":
                           '%%S{STRING} = Will place STRING in folder name if book has a subtitle, else nothing.\n'
                           '%%t = Title.\n'
                           '%%v = Volume (book in series).\n'
-                          '%%y = Year published.'), type=str, metavar="string")
-    parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true")
+                          '%%y = Year published.'), type=str, metavar="string", default=os.getenv("OUTPUT_FORMAT_STRING"))
+    parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true", default=os.getenv("REPLACE_SPACE"))
     parser.add_argument("-v", "--version", help="Print version.", action="store_true")
     args = parser.parse_args()
     if args.version:
@@ -765,6 +765,11 @@ if __name__ == "__main__":
             table.append(row)
 
         return table
+
+    # I don't like this
+    if os.getenv("DOWNLOAD_ALL"):
+        sys.argv.append("--download-all")
+        sys.argv.append(os.getenv("DOWNLOAD_ALL"))
 
     # Doing it this way makes the program more flexible.
     # You can do stuff like -ls -b 999 -ls -dl 999 -r 999 -ls
