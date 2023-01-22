@@ -35,7 +35,7 @@ import datetime
 import argparse
 from tabulate import tabulate
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 
 class Libby:
