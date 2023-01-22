@@ -46,9 +46,6 @@ class Libby:
         self.id_path = id_path
         self.http_session = requests.Session()
         self.archive_path = archive_path
-        if archive_path:
-            self.load_archive()
-            print("Loaded archive", archive_path)
 
         headers = {
             "Accept": "application/json",
@@ -158,7 +155,7 @@ class Libby:
 
         return response
 
-    def clone_by_code(self, code: int) -> dict:
+    def clone_by_code(self, code: str) -> dict:
         resp = self.http_session.post("https://sentry-read.svc.overdrive.com/chip/clone/code", data={"code": code})
         self.get_chip()
         return resp.json()
@@ -523,6 +520,7 @@ class Libby:
 
         if self.archive_path:
             self.load_archive()
+            print("Loaded archive", self.archive_path)
             if self.is_downloaded(loan["id"]):
                 print(f"Book has already been downloaded and stored in archive: {loan['id']}")
                 return
@@ -713,6 +711,7 @@ if __name__ == "__main__":
     parser.add_argument("-se", "--search-ebook", help="Search for ebook in your libraries.", metavar='"search query"')
     parser.add_argument("-ls", "--list-loans", help="List your current loans.", action="store_true")
     parser.add_argument("-lsc", "--list-cards", help="List your current cards.", action="store_true")
+    parser.add_argument("-lsh", "--list-holds", help="List your current holds.", action="store_true")
     parser.add_argument("-b", "--borrow-book", help="Borrow book from the first library where it's available.", metavar="id")
     parser.add_argument("-r", "--return-book", help="Return book. If the same book is borrowed in multiple libraries this will only return the first one.", metavar="id")
     parser.add_argument("-dl", "--download", help="Download book or audiobook by title id. You need to have borrowed the book.", metavar="id")
@@ -799,10 +798,32 @@ if __name__ == "__main__":
                     })
                 print(tabulate(t, headers="keys", tablefmt="grid"))
 
+        elif arg in ["-lsh", "--list-holds"]:
+            s = L.get_sync()
+            if args.json:
+                print(json.dumps(s["holds"], indent=4))
+            else:
+                t = []
+                print("Holds:")
+                for h in s["holds"]:
+                    mi = L.get_media_info(h["id"])
+                    t.append({
+                        "Id": h['id'],
+                        "Type": h['type']['id'],
+                        "Formats": "\n".join(L.get_formats_for_loaned_book_or_media_info(h)) or "unavailable",
+                        "Library": next((c["advantageKey"] for c in s["cards"] if c["cardId"] == h["cardId"]), ""),
+                        "CardId": h["cardId"],
+                        "Authors": "\n".join(L.get_author_by_media_info(mi).split(" & ")),
+                        "Title": h['title'],
+                        "Narrators": "\n".join(L.get_narrator_by_media_info(mi).split(" & ")),
+                        "Estimated Wait": f"{h['estimatedWaitDays']} Days\nNumber {h['holdListPosition']} in line" if h.keys() >= {"estimatedWaitDays", "holdListPosition"} else ""
+                    })
+                print(tabulate(t, headers="keys", tablefmt="grid"))
+
         elif arg in ["-lsc", "--list-cards"]:
             s = L.get_sync()
             if args.json:
-                print(json.dumps(s, indent=4))
+                print(json.dumps(s["cards"], indent=4))
             else:
                 t = []
                 print("Cards:")
