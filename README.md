@@ -32,10 +32,15 @@ options:
                         Search for ebook in your libraries.
   -ls, --list-loans     List your current loans.
   -lsc, --list-cards    List your current cards.
+  -lsh, --list-holds    List your current holds.
   -b id, --borrow-book id
                         Borrow book from the first library where it's available.
   -r id, --return-book id
                         Return book. If the same book is borrowed in multiple libraries this will only return the first one.
+  -ho id, --hold-book id
+                        Hold book from the library with the shortest wait.
+  -ch id, --cancel-hold id
+                        Cancel hold. If the same book is held in multiple libraries this will only return the first one.
   -dl id, --download id
                         Download book or audiobook by title id. You need to have borrowed the book.
   -f id, --format id    Which format to download with -dl.

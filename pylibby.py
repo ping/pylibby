@@ -94,7 +94,7 @@ class Libby:
                         return True
         return False
 
-    def borrow_book(self, title_id:str, card_id: str, days: int = 21) -> dict:
+    def borrow_book(self, title_id: str, card_id: str, days: int = 21) -> dict:
         media_info = self.get_media_info(title_id)
         j = {
             "period": days,
@@ -109,7 +109,79 @@ class Libby:
             raise RuntimeError(f"Couldn't borrow book: {resp.json()}, you may need to verify your card in the app.")
         return resp.json()
 
-    def borrow_book_on_any_logged_in_library(self, title_id:str, days: int = 21) -> dict:
+    def hold_book(self, title_id: str, card_id: str) -> dict:
+        sync = self.get_sync()
+        for card in sync["cards"]:
+            if self.is_book_available(card["advantageKey"], title_id):
+                print(f"Book available at {card['advantageKey']}. Not creating hold.")
+                return {}
+        for loan in sync["loans"]:
+            if loan["id"] == title_id:
+                print(f"Book already borrowed. Not creating hold.")
+                return {}
+        for hold in sync["holds"]:
+            if hold["id"] == title_id:
+                print(f"Book already on hold. Not creating hold.")
+                return {}
+
+        j = {
+            "days_to_suspend": 0,
+            "email_address": ""
+        }
+        url = f"https://sentry-read.svc.overdrive.com/card/{card_id}/hold/{title_id}"
+        resp = self.http_session.post(url, json=j)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Couldn't hold book: {resp.json()}, you may need to verify your card in the app.")
+        return resp.json()
+
+    def cancel_hold(self, title_id: str, card_id: str = None):
+        if not card_id:
+            hold = self.get_hold(title_id)
+            if hold:
+                card_id = hold["cardId"]
+
+        if not card_id:
+            raise RuntimeError("Couldn't find cardId on hold or couldn't find hold at all, can't cancel it.")
+
+        url = f"https://sentry-read.svc.overdrive.com/card/{card_id}/hold/{title_id}"
+        resp = self.http_session.delete(url)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Couldn't cancel hold on book: {resp.json()}, you may need to verify your card in the app.")
+
+    def hold_book_on_library_with_shortest_wait_time(self, title_id: str) -> dict:
+        availabilities = []
+        sync = self.get_sync()
+        for loan in sync["loans"]:
+            if loan["id"] == title_id:
+                print(f"Book already borrowed. Not creating hold.")
+                return {}
+        for hold in sync["holds"]:
+            if hold["id"] == title_id:
+                print(f"Book already on hold. Not creating hold.")
+                return {}
+        for card in sync["cards"]:
+            if self.is_book_available(card["advantageKey"], title_id):
+                print(f"Book available at {card['advantageKey']}. Not creating hold.")
+                return {}
+            a = requests.get(f"https://thunder.api.overdrive.com/v2/libraries/{card['advantageKey']}/media/{title_id}/availability").json()
+            a["cardId"] = card['cardId'] # Add back the cardId so we can find it later
+            a["library"] = card['advantageKey'] # Add back library so we can find it later
+            availabilities.append(a)
+
+        try:
+            shortest = next(iter(sorted((a for a in availabilities if "estimatedWaitDays" in a), key=lambda i: i["estimatedWaitDays"])), None)
+            if shortest:
+                print(f"Found shortest wait at {shortest['library']}, creating hold there.")
+                return self.hold_book(title_id, shortest["cardId"])
+            else:
+                print("Couldn't find library with shortest wait time.")
+
+        except KeyError:
+            print("Couldn't find library with shortest wait time.")
+
+        return {}
+
+    def borrow_book_on_any_logged_in_library(self, title_id: str, days: int = 21) -> dict:
         for card in self.get_sync()["cards"]:
             if int(card["counts"]["loan"]) >= int(card["limits"]["loan"]):
                 print(f"Card {card['cardId']} at {card['advantageKey']} is at its limit, skipping.")
@@ -121,7 +193,7 @@ class Libby:
         print("Book not available at any of your libraries.")
         return {}
 
-    def return_book(self, title_id:str, card_id: str = None):
+    def return_book(self, title_id: str, card_id: str = None):
         if not card_id:
             loans = self.get_loans()
             for loan in loans:
@@ -166,6 +238,12 @@ class Libby:
     def get_loan(self, title_id: str) -> dict:
         return next((l for l in self.get_sync()["loans"] if l["id"] == title_id), {})
 
+    def have_hold(self, title_id: str) -> bool:
+        return any(l for l in self.get_sync()["holds"] if l["id"] == title_id)
+
+    def get_hold(self, title_id: str) -> dict:
+        return next((l for l in self.get_sync()["holds"] if l["id"] == title_id), {})
+
     def open_audiobook(self, card_id: str, title_id: str) -> dict:
         loan = self.get_loan(title_id)
         if not loan:
@@ -206,6 +284,12 @@ class Libby:
         if "isAvailable" in availability:
             return availability["isAvailable"]
         return False
+
+    def is_book_available_in_any_logged_in_library(self, title_id: str) -> str:
+        for card in self.get_sync()["cards"]:
+            if self.is_book_available(card["advantageKey"], title_id):
+                print(f"Book available at {card['advantageKey']}. Not creating hold.")
+                return card["advantageKey"]
 
     def get_author(self, title_id: str, delim=" & ") -> str:
         return delim.join([creator["name"] for creator in self.get_media_info(title_id)["creators"] if creator["role"] == "Author"])
@@ -714,6 +798,8 @@ if __name__ == "__main__":
     parser.add_argument("-lsh", "--list-holds", help="List your current holds.", action="store_true")
     parser.add_argument("-b", "--borrow-book", help="Borrow book from the first library where it's available.", metavar="id")
     parser.add_argument("-r", "--return-book", help="Return book. If the same book is borrowed in multiple libraries this will only return the first one.", metavar="id")
+    parser.add_argument("-ho", "--hold-book", help="Hold book from the library with the shortest wait.", metavar="id")
+    parser.add_argument("-ch", "--cancel-hold", help="Cancel hold. If the same book is held in multiple libraries this will only return the first one.", metavar="id")
     parser.add_argument("-dl", "--download", help="Download book or audiobook by title id. You need to have borrowed the book.", metavar="id")
     parser.add_argument("-f", "--format", help="Which format to download with -dl.", type=str, metavar="id", required="-dl" in sys.argv or "--download" in sys.argv)
     parser.add_argument("-dla", "--download-all", help="Download all loans with the specified format. Does not consider -f.", metavar="format", default=os.getenv("DOWNLOAD_ALL"))
@@ -866,8 +952,18 @@ if __name__ == "__main__":
             print(f"Book returned: {sys.argv[arg_pos + 1]}")
 
         elif arg in ["-b", "--borrow-book"]:
-            L.borrow_book_on_any_logged_in_library(sys.argv[arg_pos + 1])
-            print(f"Book borrowed: {sys.argv[arg_pos + 1]}")
+            r = L.borrow_book_on_any_logged_in_library(sys.argv[arg_pos + 1])
+            if r:
+                print(f"Book borrowed: {sys.argv[arg_pos + 1]}")
+
+        elif arg in ["-ho", "--hold-book"]:
+            r = L.hold_book_on_library_with_shortest_wait_time(sys.argv[arg_pos + 1])
+            if r:
+                print(f"Book on hold: {sys.argv[arg_pos + 1]}")
+
+        elif arg in ["-ch", "--cancel-hold"]:
+            r = L.cancel_hold(sys.argv[arg_pos + 1])
+            print(f"Hold canceled: {sys.argv[arg_pos + 1]}")
 
         elif arg in ["-i", "--info"]:
             mi = L.get_media_info(sys.argv[arg_pos + 1])
