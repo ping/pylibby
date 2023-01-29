@@ -22,6 +22,7 @@ import json
 import sys
 import urllib.parse
 import requests
+from requests.adapters import HTTPAdapter, Retry
 import os
 import dicttoxml
 import html
@@ -52,9 +53,14 @@ class Libby:
     id_path = None
     archive = None
 
-    def __init__(self, id_path: str, archive_path: str = "", code: str = None, timeout: int = 10):
+    def __init__(self, id_path: str, archive_path: str = "", code: str = None, timeout: int = 10, max_retries: int = 0):
         self.id_path = id_path
-        self.http_session = requests.Session()
+
+        http_session = requests.Session()
+        adapter = HTTPAdapter(max_retries=Retry(total=max_retries, backoff_factor=0.1))
+        http_session.mount("http://", adapter)
+        http_session.mount("https://", adapter)
+        self.http_session = http_session
         self.archive_path = archive_path
         self.timeout = timeout
 
@@ -840,14 +846,18 @@ if __name__ == "__main__":
                           '%%v = Volume (book in series).\n'
                           '%%y = Year published.'), type=str, metavar="string", default=os.getenv("OUTPUT_FORMAT_STRING"))
     parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true", default=os.getenv("REPLACE_SPACE"))
-    parser.add_argument("-t", "--timeout", help="Download timeout interval (seconds)", type=int, default=10)
+    parser.add_argument("-t", "--timeout", help="Download timeout interval (seconds).", type=int, default=10)
+    parser.add_argument(
+        "--retry", help="Maximum download retry attempts.", type=int, default=0,
+        choices=range(0, 6),  # limit max to 5
+        dest="max_retries")
     parser.add_argument("-v", "--version", help="Print version.", action="store_true")
     args = parser.parse_args()
     if args.version:
         print(f"PyLibby {VERSION}")
         quit()
 
-    L = Libby(args.id_file, code=args.code, archive_path=args.archive, timeout=args.timeout)
+    L = Libby(args.id_file, code=args.code, archive_path=args.archive, timeout=args.timeout, max_retries=args.max_retries)
 
     def create_table(media_infos: list, narrators=True):
         table = []
