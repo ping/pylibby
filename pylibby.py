@@ -29,12 +29,14 @@ import html
 import time
 import re
 from mutagen.mp3 import MP3
-from mutagen.id3 import TXXX, TPE1, TIT2, TIT3, TPUB, TYER, TCOM, TCON, TALB, TDRL, COMM
+from mutagen.id3 import TXXX, TPE1, TIT2, TIT3, TPUB, TYER, TCOM, TCON, TALB, TDRL, COMM, CHAP, CTOC, CTOCFlags
 from typing import Callable
 from os import path
 import datetime
 import argparse
 from tabulate import tabulate
+import xml.etree.ElementTree as ET
+
 
 VERSION = "0.4.0"
 
@@ -176,6 +178,10 @@ def convert_seconds_to_timestamp(seconds: str) -> str:
     return timestamp
 
 
+def convert_timestamp_to_seconds(timestamp: str) -> int:
+    return int(timestamp.split(":")[0]) * 60 + int(float(timestamp.split(":")[1]))
+
+
 def create_opf(media_info: dict) -> str:
     # Create opf metadata. Not very elegant, but I don't think dicttoxml supports the attributes we need for this.
     def html_to_xml(html_string: str) -> str:
@@ -288,10 +294,33 @@ def embed_tag_data(filename: str, toc_entry_for_file: str, audiobook_info: dict)
     if isbn is not None:
         tag.add(isbn)
 
-    chapters = TXXX(desc="OverDrive MediaMarkers", text=toc_entry_for_file)
-    tag.add(chapters)
+    overdrive_mediamarkers = TXXX(desc="OverDrive MediaMarkers", text=toc_entry_for_file)
+    tag.add(overdrive_mediamarkers)
 
-    # save
+    # chapters looks like this: [("chapter title", int(starttime_in_seconds)), ...]
+    chapters = sorted([(m[0].text, convert_timestamp_to_seconds(m[1].text)) for m
+                       in ET.fromstring(toc_entry_for_file).findall("Marker")], key=lambda x: x[1])
+    chapter_tags = []
+    start_time = 0
+    for i in range(len(chapters)):
+        c = CHAP(element_id=f"Chapter {i}", start_time=start_time,
+                 end_time=chapters[i+1][1]*1000 if len(chapters) > i+1 else int(file.info.length*1000),
+                 sub_frames=[
+                    TIT2(text=chapters[i][0])
+                ])
+        start_time = c.end_time
+        chapter_tags.append(c)
+
+    toc_tag = CTOC(
+        element_id="toc",
+        flags=CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED,
+        child_element_ids=[f"Chapter {i}" for i in range(len(chapters))],
+        sub_frames=[TIT2(text=["Table of Contents"])])
+
+    tag.add(toc_tag)
+    for c in chapter_tags:
+        tag.add(c)
+
     file.save()
 
 
