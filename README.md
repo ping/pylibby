@@ -79,7 +79,7 @@ options:
 </pre>
 
 Alternatively you can run PyLibby without pipenv, but make sure you have 
-installed the requirements, "requests", "tabulate", "dicttoxml" and "mutagen". Minimum Python version is 3.11.
+installed the requirements, "requests", "tabulate", "dicttoxml" and "mutagen". Minimum Python version is 3.10.
 
 
 You need to log in before you can start using PyLibby. 
