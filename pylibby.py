@@ -795,7 +795,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='PyLibby',
         description=f'CLI for Libby v{VERSION}',
-        formatter_class=argparse.RawTextHelpFormatter)
+        formatter_class=argparse.RawTextHelpFormatter,
+        fromfile_prefix_chars="@")
 
     parser.add_argument("-id", "--id-file", help="Path to id JSON (which you get from '--code'. Defaults to ./config/id.json).", default=os.getenv("ID", "./config/id.json"), metavar="path")
     parser.add_argument("-c", "--code", help="Login with code.", type=int, metavar="12345678", default=os.getenv("CODE"))
