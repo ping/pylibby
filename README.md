@@ -71,6 +71,10 @@ options:
                         %v = Volume (book in series).
                         %y = Year published.
   -rs, --replace-space  Replace spaces in folder path with underscores.
+  -t TIMEOUT, --timeout TIMEOUT
+                        Download timeout interval (seconds).
+  --retry {0,1,2,3,4,5}
+                        Maximum download retry attempts.
   -v, --version         Print version.
 </pre>
 
@@ -183,6 +187,8 @@ PyLibby can take some environment variables. These are:
 * ARCHIVE - path to archive.json
 * ID - path to id.json
 * OUTPUT - output path
+* RETRY - maximum download retry attempts (max 5, anything over = 0)
+* TIMEOUT - download timeout in seconds
 
 These can be used like this:
 ```bash
@@ -210,6 +216,7 @@ Most other formats will just print out a link you can open in your browser.
 
 This tool has only been tested on Linux and macOS (thanks [dhnyny](https://github.com/dhnyny)).
 
+You can try --timeout and --retry if you're having connection issues.
 
 ## Info
 * There's a swagger API with documentation [here](https://thunder-api.overdrive.com/docs/ui/index), but I couldn't get everything to work.
@@ -222,6 +229,7 @@ This tool has only been tested on Linux and macOS (thanks [dhnyny](https://githu
 * Overdrive for their service.
 * The Norwegian libraries that are a part of Overdrive.
 * [Naleo Hyde](https://github.com/naleo/)
+* [ping](https://github.com/ping/)
 
 
 ## Legal
