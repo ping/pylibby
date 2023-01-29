@@ -52,10 +52,11 @@ class Libby:
     id_path = None
     archive = None
 
-    def __init__(self, id_path: str, archive_path: str = "", code: str = None):
+    def __init__(self, id_path: str, archive_path: str = "", code: str = None, timeout: int = 10):
         self.id_path = id_path
         self.http_session = requests.Session()
         self.archive_path = archive_path
+        self.timeout = timeout
 
         headers = {
             "Accept": "application/json",
@@ -114,7 +115,7 @@ class Libby:
         }
 
         url = f"https://sentry-read.svc.overdrive.com/card/{card_id}/loan/{title_id}"
-        resp = self.http_session.post(url, json=j)
+        resp = self.http_session.post(url, json=j, timeout=self.timeout)
         if resp.status_code != 200:
             raise RuntimeError(f"Couldn't borrow book: {resp.json()}, you may need to verify your card in the app.")
         return resp.json()
@@ -139,7 +140,7 @@ class Libby:
             "email_address": ""
         }
         url = f"https://sentry-read.svc.overdrive.com/card/{card_id}/hold/{title_id}"
-        resp = self.http_session.post(url, json=j)
+        resp = self.http_session.post(url, json=j, timeout=self.timeout)
         if resp.status_code != 200:
             raise RuntimeError(f"Couldn't hold book: {resp.json()}, you may need to verify your card in the app.")
         return resp.json()
@@ -154,7 +155,7 @@ class Libby:
             raise RuntimeError("Couldn't find cardId on hold or couldn't find hold at all, can't cancel it.")
 
         url = f"https://sentry-read.svc.overdrive.com/card/{card_id}/hold/{title_id}"
-        resp = self.http_session.delete(url)
+        resp = self.http_session.delete(url, timeout=self.timeout)
         if resp.status_code != 200:
             raise RuntimeError(f"Couldn't cancel hold on book: {resp.json()}, you may need to verify your card in the app.")
 
@@ -215,22 +216,23 @@ class Libby:
             raise RuntimeError("Couldn't find cardId on loan or couldn't find loan at all, can't return it.")
 
         url = f"https://sentry-read.svc.overdrive.com/card/{card_id}/loan/{title_id}"
-        resp = self.http_session.delete(url)
+        resp = self.http_session.delete(url, timeout=self.timeout)
         if resp.status_code != 200:
             raise RuntimeError(f"Couldn't return book: {resp.json()}, you may need to verify your card in the app.")
 
     def get_sync(self) -> dict:
-        return self.http_session.get("https://sentry-read.svc.overdrive.com/chip/sync").json()
+        return self.http_session.get("https://sentry-read.svc.overdrive.com/chip/sync", timeout=self.timeout).json()
 
     def get_media_info(self, title_id: str) -> dict:
         # API documentation: https://thunder-api.overdrive.com/docs/ui/index
-        return self.http_session.get(f"https://thunder.api.overdrive.com/v2/media/{title_id}").json()
+        return self.http_session.get(f"https://thunder.api.overdrive.com/v2/media/{title_id}", timeout=self.timeout).json()
 
     def get_loans(self) -> list:
         return self.get_sync()["loans"]
 
     def get_chip(self) -> dict:
-        response = self.http_session.post("https://sentry-read.svc.overdrive.com/chip", params={"client": "dewey"}).json()
+        response = self.http_session.post(
+            "https://sentry-read.svc.overdrive.com/chip", params={"client": "dewey"}, timeout=self.timeout).json()
         self.http_session.headers.update({'Authorization': f'Bearer {response["identity"]}'})
         with open(self.id_path, "w") as w:
             w.write(json.dumps(response, indent=4, sort_keys=True))
@@ -238,7 +240,8 @@ class Libby:
         return response
 
     def clone_by_code(self, code: str) -> dict:
-        resp = self.http_session.post("https://sentry-read.svc.overdrive.com/chip/clone/code", data={"code": code})
+        resp = self.http_session.post(
+            "https://sentry-read.svc.overdrive.com/chip/clone/code", data={"code": code}, timeout=self.timeout)
         self.get_chip()
         return resp.json()
 
@@ -260,7 +263,7 @@ class Libby:
             raise RuntimeError("Can't open a book if it is not checked out.")
 
         url = f"https://sentry-read.svc.overdrive.com/open/{'audiobook' if loan['type']['id'] == 'audiobook' else 'book'}/card/{card_id}/title/{title_id}"
-        audiobook = self.http_session.get(url).json()
+        audiobook = self.http_session.get(url, timeout=self.timeout).json()
         message = audiobook["message"]
         openbook_url = audiobook["urls"]["openbook"]
 
@@ -269,13 +272,13 @@ class Libby:
         self.http_session.headers = None
         #We need this to set a cookie for us
         web_url_with_message = audiobook["urls"]["web"] + "?" + message
-        self.http_session.get(web_url_with_message)
+        self.http_session.get(web_url_with_message, timeout=self.timeout)
 
         self.http_session.headers = old_headers
 
         return {
                 "audiobook_urls": audiobook,
-                "openbook":  self.http_session.get(openbook_url).json(),
+                "openbook":  self.http_session.get(openbook_url, timeout=self.timeout).json(),
                 "media_info": self.get_media_info(title_id)
                 }
 
@@ -405,7 +408,7 @@ class Libby:
         for download_url in download_urls:
             filename = self.get_filename(download_url)
             if self.should_download(loan["id"], filename):
-                resp = self.http_session.get(download_url, timeout=10, stream=True)
+                resp = self.http_session.get(download_url, timeout=self.timeout, stream=True)
                 with open(os.path.join(final_path, filename), "wb") as w:
                     downloaded = 0
                     mb = 0
@@ -596,7 +599,7 @@ class Libby:
                 best = next(iter(sorted(media_info["covers"].items(), key=lambda i: i[1]["width"], reverse=True)), None)
                 if best:
                     with open(os.path.join(path_, best[0] + ".jpg"), "wb") as w:
-                        w.write(self.http_session.get(best[1]["href"]).content)
+                        w.write(self.http_session.get(best[1]["href"], timeout=self.timeout).content)
                         return
             except KeyError:
                 print("Cover has unspecified width!")
@@ -604,7 +607,8 @@ class Libby:
             # Try getting cover510Wide if it fails to do so automatically. Sometimes "width" is missing.
             if "cover510Wide" in media_info["covers"]:
                 with open(os.path.join(path_, "cover510Wide.jpg"), "wb") as w:
-                    w.write(self.http_session.get(media_info["covers"]["cover510Wide"]["href"]).content)
+                    w.write(
+                        self.http_session.get(media_info["covers"]["cover510Wide"]["href"], timeout=self.timeout).content)
 
     def download_loan(self, loan: dict, format_id: str, output_path: str, save_info=False, download=True, download_cover=True, get_odm=False, embed_metadata=False, format_string=False, replace_space=False, create_opf=False):
         # Does not actually download ebook, only gets the ODM or ACSM for now.
@@ -632,13 +636,13 @@ class Libby:
                     final_path = os.path.join(output_path, download_path)
                     if download or save_info or create_opf:
                         os.makedirs(final_path, exist_ok=True)
-                    fulfill = self.http_session.get(url).json()
+                    fulfill = self.http_session.get(url, timeout=self.timeout).json()
                     if "fulfill" in fulfill:
                         if download:
                             fulfill_url = fulfill["fulfill"]["href"]
                             if self.should_download(loan["id"], loan["id"] + ".odm"):
                                 with open(os.path.join(final_path, loan["id"] + ".odm"), "wb") as w:
-                                    w.write(self.http_session.get(fulfill_url).content)
+                                    w.write(self.http_session.get(fulfill_url, timeout=self.timeout).content)
                                     print(f"Downloaded odm file to {w.name}.")
                                     L.add_to_archive(loan["id"], os.path.basename(w.name), loan["firstCreatorName"] if "firstCreatorName" in loan else L.get_author(loan["id"]), loan["title"] if "title" in loan else None)
                             if L.is_downloaded(loan["id"], [loan["id"] + ".odm"]):
@@ -652,7 +656,7 @@ class Libby:
                 #print(resp)
                 #print(resp.content)
                 #quit()
-                fulfill = self.http_session.get(url).json()
+                fulfill = self.http_session.get(url, timeout=self.timeout).json()
                 if "fulfill" in fulfill:
                     fulfill_url = fulfill["fulfill"]["href"]
                     if format_string is not None:
@@ -674,7 +678,7 @@ class Libby:
                         if download:
                             if self.should_download(loan["id"], os.path.basename(os.path.join(final_path, self.get_filename(fulfill_url)))):
                                 with open(os.path.join(final_path, self.get_filename(fulfill_url)), "wb") as w:
-                                    w.write(self.http_session.get(fulfill_url).content)
+                                    w.write(self.http_session.get(fulfill_url, timeout=self.timeout).content)
                                     print(f"Downloaded acsm file to {w.name}.")
                                     L.add_to_archive(loan["id"], os.path.basename(w.name), loan["firstCreatorName"] if "firstCreatorName" in loan else L.get_author(loan["id"]), loan["title"] if "title" in loan else None)
                             if L.is_downloaded(loan["id"], [os.path.basename(os.path.join(final_path, self.get_filename(fulfill_url)))]):
@@ -836,13 +840,14 @@ if __name__ == "__main__":
                           '%%v = Volume (book in series).\n'
                           '%%y = Year published.'), type=str, metavar="string", default=os.getenv("OUTPUT_FORMAT_STRING"))
     parser.add_argument("-rs", "--replace-space", help="Replace spaces in folder path with underscores.", action="store_true", default=os.getenv("REPLACE_SPACE"))
+    parser.add_argument("-t", "--timeout", help="Download timeout interval (seconds)", type=int, default=10)
     parser.add_argument("-v", "--version", help="Print version.", action="store_true")
     args = parser.parse_args()
     if args.version:
         print(f"PyLibby {VERSION}")
         quit()
 
-    L = Libby(args.id_file, code=args.code, archive_path=args.archive)
+    L = Libby(args.id_file, code=args.code, archive_path=args.archive, timeout=args.timeout)
 
     def create_table(media_infos: list, narrators=True):
         table = []
