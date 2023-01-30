@@ -109,7 +109,7 @@ def get_download_path(media_info: dict, format_string="%a/%y - %t", should_repla
     format_string = format_string.replace("%t", media_info['title'])
     if "publishDate" in media_info:
         format_string = format_string.replace("%y",
-                                              str(datetime.datetime.fromisoformat(media_info['publishDate']).year))
+                                              str(compat_datetime_fromisoformat(media_info['publishDate']).year))
     else:
         # Removing the stuff people usually put around. Maybe we can find a regex for this? Order is important.
         # Maybe make "%y{%y - }" possible instead?
@@ -265,8 +265,8 @@ def embed_tag_data(filename: str, toc_entry_for_file: str, audiobook_info: dict)
     tag.add(publisher)
     # Year usage non-standardized, use both
     if "publishDate" in audiobook_info["media_info"]:
-        year = TYER(text=str(datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).year))
-        year2 = TDRL(text=datetime.datetime.fromisoformat(audiobook_info["media_info"]['publishDate']).strftime("%Y-%m-%d"))
+        year = TYER(text=str(compat_datetime_fromisoformat(audiobook_info["media_info"]['publishDate']).year))
+        year2 = TDRL(text=compat_datetime_fromisoformat(audiobook_info["media_info"]['publishDate']).strftime("%Y-%m-%d"))
         tag.add(year)
         tag.add(year2)
     narrator = TCOM(text=get_narrators(media_info=audiobook_info["media_info"], delim="/"))
