@@ -63,7 +63,7 @@ def get_filename_from_url(url: str) -> str:
     return path.basename(url_parsed)
 
 
-def download_cover(media_info: dict, _path: str, timeout: int = 10):
+def download_cover(media_info: dict, _path: str, timeout: int = 10, should_resize_to_square: bool = True) -> str:
     downloaded_cover_path = ""
     if "covers" in media_info:
         try:
@@ -71,7 +71,16 @@ def download_cover(media_info: dict, _path: str, timeout: int = 10):
             if best:
                 downloaded_cover_path = os.path.join(_path, best[0] + ".jpg")
                 with open(downloaded_cover_path, "wb") as w:
-                    w.write(requests.get(best[1]["href"], timeout=timeout).content)
+                    if not should_resize_to_square:
+                        w.write(requests.get(best[1]["href"], timeout=timeout).content)
+                    else:
+                        resize_url = f"https://ic.od-cdn.com/resize?type=auto" \
+                                     f"&width={best[1]['width']}" \
+                                     f"&quality=80" \
+                                     f"&force=true" \
+                                     f"&height={best[1]['width']}" \
+                                     f"&url={urllib.parse.urlparse(best[1]['href']).path}"
+                        w.write(requests.get(resize_url, timeout=timeout).content)
                     return downloaded_cover_path
         except KeyError:
             print("Cover has unspecified width!")
@@ -80,7 +89,16 @@ def download_cover(media_info: dict, _path: str, timeout: int = 10):
         if "cover510Wide" in media_info["covers"]:
             downloaded_cover_path = os.path.join(_path, "cover510Wide.jpg")
             with open(downloaded_cover_path, "wb") as w:
-                w.write(requests.get(media_info["covers"]["cover510Wide"]["href"], timeout=timeout).content)
+                if not should_resize_to_square:
+                    w.write(requests.get(media_info["covers"]["cover510Wide"]["href"], timeout=timeout).content)
+                else:
+                    resize_url = f"https://ic.od-cdn.com/resize?type=auto" \
+                                 f"&width=510" \
+                                 f"&quality=80" \
+                                 f"&force=true" \
+                                 f"&height=510" \
+                                 f"&url={urllib.parse.urlparse(media_info['covers']['cover510Wide']['href']).path}"
+                    w.write(requests.get(resize_url, timeout=timeout).content)
 
     return downloaded_cover_path
 
