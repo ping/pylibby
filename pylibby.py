@@ -29,7 +29,10 @@ import html
 import time
 import re
 from mutagen.mp3 import MP3
-from mutagen.id3 import TXXX, TPE1, TIT2, TIT3, TPUB, TYER, TCOM, TCON, TALB, TDRL, COMM, CHAP, CTOC, CTOCFlags
+from mutagen.id3 import (
+    TXXX, TPE1, TIT2, TIT3, TPUB, TYER, TCOM, TCON, TALB, TDRL, COMM, CHAP, CTOC, CTOCFlags,
+    APIC, Encoding, PictureType
+)
 from typing import Callable
 from os import path
 import datetime
@@ -61,21 +64,25 @@ def get_filename_from_url(url: str) -> str:
 
 
 def download_cover(media_info: dict, _path: str, timeout: int = 10):
+    downloaded_cover_path = ""
     if "covers" in media_info:
         try:
             best = next(iter(sorted(media_info["covers"].items(), key=lambda i: i[1]["width"], reverse=True)), None)
             if best:
-                with open(os.path.join(_path, best[0] + ".jpg"), "wb") as w:
+                downloaded_cover_path = os.path.join(_path, best[0] + ".jpg")
+                with open(downloaded_cover_path, "wb") as w:
                     w.write(requests.get(best[1]["href"], timeout=timeout).content)
-                    return
+                    return downloaded_cover_path
         except KeyError:
             print("Cover has unspecified width!")
 
         # Try getting cover510Wide if it fails to do so automatically. Sometimes "width" is missing.
         if "cover510Wide" in media_info["covers"]:
-            with open(os.path.join(_path, "cover510Wide.jpg"), "wb") as w:
+            downloaded_cover_path = os.path.join(_path, "cover510Wide.jpg")
+            with open(downloaded_cover_path, "wb") as w:
                 w.write(requests.get(media_info["covers"]["cover510Wide"]["href"], timeout=timeout).content)
 
+    return downloaded_cover_path
 
 def get_media_info(title_id: str, timeout: int = 10) -> dict:
     # API documentation: https://thunder-api.overdrive.com/docs/ui/index
@@ -244,7 +251,7 @@ def get_formats(media_info: dict) -> list[str]:
     return [f["id"] for f in media_info["formats"]]
 
 
-def embed_tag_data(filename: str, toc_entry_for_file: str, audiobook_info: dict):
+def embed_tag_data(filename: str, toc_entry_for_file: str, audiobook_info: dict, cover_file_path: str):
     # open file for tag embedding
     file = MP3(filename)
     if file.tags is None:
@@ -320,6 +327,16 @@ def embed_tag_data(filename: str, toc_entry_for_file: str, audiobook_info: dict)
     tag.add(toc_tag)
     for c in chapter_tags:
         tag.add(c)
+
+    if cover_file_path:
+        # embed cover
+        with open(cover_file_path, "rb") as f:
+            tag.add(
+                APIC(
+                    encoding=Encoding.UTF8, mime="image/jpeg", type=PictureType.COVER_FRONT,
+                    desc="Cover", data=f.read()
+                )
+            )
 
     file.save()
 
@@ -603,8 +620,9 @@ class Libby:
                 w.write(json.dumps(audiobook_info, indent=4))
                 print("Wrote info.json.")
 
+        cover_file_path = ""
         if should_download_cover:
-            download_cover(loan, final_path, self.timeout)
+            cover_file_path = download_cover(loan, final_path, self.timeout)
             print("Downloaded cover.")
 
         if should_create_opf:
@@ -636,10 +654,10 @@ class Libby:
                                 print(f"{filename}: Downloaded {mb}MB.")
                 if should_embed_metadata:
                     if filename in tocout:
-                        embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info)
+                        embed_tag_data(os.path.join(final_path, filename), tocout[filename], audiobook_info, cover_file_path)
                         print(f"Embedded tags in {filename}.")
                     else:
-                        embed_tag_data(os.path.join(final_path, filename), "<Markers><Marker><Name>(continued)</Name><Time>0:00.000</Time></Marker></Markers>", audiobook_info)
+                        embed_tag_data(os.path.join(final_path, filename), "<Markers><Marker><Name>(continued)</Name><Time>0:00.000</Time></Marker></Markers>", audiobook_info, cover_file_path)
                         print("no toc to embed, generated (continued) chapter marker, and embedded it.")
 
                 time.sleep(random.random() * 2)
