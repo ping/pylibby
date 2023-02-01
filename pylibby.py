@@ -179,14 +179,23 @@ def get_download_path(media_info: dict, format_string="%a/%y - %t", should_repla
 
 def get_toc_from_audiobook_info(audiobook_info: dict) -> dict:
     toc = {}
-    for entry in audiobook_info["openbook"]["nav"]["toc"]:
+
+    def get_marker(entry: dict) -> str:
         filename = entry["path"].split("}")[-1].split("#")[0]
         if filename not in toc:
             toc[filename] = []
-        new_entry = {"Name": entry["title"]}
         timestamp_temp = entry["path"].split("#")
-        new_entry["Time"] = convert_seconds_to_timestamp(timestamp_temp[-1]) if len(timestamp_temp) != 1 else "0:00.000"
+        time = convert_seconds_to_timestamp(timestamp_temp[-1]) if len(timestamp_temp) != 1 else "0:00.000"
+        new_entry = {"Name": "(continued)" if ("(00:00)" in entry["title"] and time == "0:00.000") else entry["title"],
+                     "Time": time}
         toc[filename].append(new_entry)
+
+    for e in audiobook_info["openbook"]["nav"]["toc"]:
+        get_marker(e)
+        if "contents" in e:
+            for c in e["contents"]:
+                get_marker(c)
+
     tocout = {}
     for key, value in toc.items():
         tocout[key] = dicttoxml.dicttoxml(value, custom_root='Markers',
