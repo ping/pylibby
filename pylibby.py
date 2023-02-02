@@ -28,6 +28,7 @@ import dicttoxml
 import html
 import time
 import re
+from collections import namedtuple, OrderedDict
 from mutagen.mp3 import MP3
 from mutagen.id3 import (
     TXXX, TPE1, TIT2, TIT3, TPUB, TYER, TCOM, TCON, TALB, TDRL, COMM, CHAP, CTOC, CTOCFlags,
@@ -177,33 +178,77 @@ def get_download_path(media_info: dict, format_string="%a/%y - %t", should_repla
         return format_string
 
 
+FILE_PART_RE = re.compile(
+    r"{[A-F0-9\-]{36}}(?P<part_name>[^#]+)(#(?P<second_stamp>\d+))?$"
+)
+ChapterMarker = namedtuple("ChapterMarker", ["title", "part_name", "second_stamp"])
+
+
+def parse_part_path(title: str, part_path: str) -> ChapterMarker:
+    """
+    Extract chapter marker info from the part path,
+    e.g. {AAAAAAAA-BBBB-CCCC-9999-ABCDEF123456}Fmt425-Part03.mp3#3000
+    yields ChapterMarker(title, "Fmt425-Part03.mp3", 3000)
+    """
+    mobj = FILE_PART_RE.match(part_path)
+    if not mobj:
+        raise ValueError(f"Unexpected path format: {part_path}")
+    return ChapterMarker(
+        title,
+        mobj.group("part_name"),
+        int(mobj.group("second_stamp")) if mobj.group("second_stamp") else 0,
+    )
+
+
+def parse_toc(toc: list[dict]) -> dict[str, list[ChapterMarker]]:
+    """
+    Parses the dict from the openbook["nav"]["toc"]
+    """
+    entries = []
+    for item in toc:
+        entries.append(parse_part_path(item["title"], item["path"]))
+        for content in item.get("contents", []):
+            # we use the original `item["title"]` instead of `content["title"]`
+            # so that we can de-dup these entries later
+            entries.append(parse_part_path(item["title"], content["path"]))
+
+    # use an OrderedDict to ensure that we can consistently test this
+    parsed_toc = OrderedDict()
+
+    for entry in entries:
+        if entry.part_name not in parsed_toc:
+            parsed_toc[entry.part_name] = []
+        if not parsed_toc[entry.part_name]:
+            # first entry for the part_name
+            parsed_toc[entry.part_name].append(entry)
+            continue
+        # de-dup entries because OD sometimes generates timestamped chapter titles marks
+        # for the same chapter in the same part, e.g. "Chapter 2 (00:00)", "Chapter 2 (12:34)"
+        if entry.title == parsed_toc[entry.part_name][-1].title:
+            continue
+        parsed_toc[entry.part_name].append(entry)
+
+    return parsed_toc
+
+
 def get_toc_from_audiobook_info(audiobook_info: dict) -> dict:
-    toc = {}
-
-    def get_marker(entry: dict) -> str:
-        filename = entry["path"].split("}")[-1].split("#")[0]
-        if filename not in toc:
-            toc[filename] = []
-        timestamp_temp = entry["path"].split("#")
-        time = convert_seconds_to_timestamp(timestamp_temp[-1]) if len(timestamp_temp) != 1 else "0:00.000"
-        new_entry = {"Name": "(continued)" if ("(00:00)" in entry["title"] and time == "0:00.000") else entry["title"],
-                     "Time": time}
-        toc[filename].append(new_entry)
-
-    for e in audiobook_info["openbook"]["nav"]["toc"]:
-        get_marker(e)
-        if "contents" in e:
-            for c in e["contents"]:
-                get_marker(c)
-
-    tocout = {}
-    for key, value in toc.items():
-        tocout[key] = dicttoxml.dicttoxml(value, custom_root='Markers',
-                                          xml_declaration=False,
-                                          attr_type=False,
-                                          return_bytes=False,
-                                          item_func=lambda x: 'Marker')
-    return tocout
+    parsed_toc = parse_toc(audiobook_info["openbook"]["nav"]["toc"])
+    toc_out = {}
+    for file_part, markers in parsed_toc.items():
+        od_markers = [
+            {
+                "Name": marker.title,
+                "Time": convert_seconds_to_timestamp(str(marker.second_stamp))
+            }
+            for marker in markers
+        ]
+        toc_out[file_part] = dicttoxml.dicttoxml(
+            od_markers, custom_root='Markers',
+            xml_declaration=False,
+            attr_type=False,
+            return_bytes=False,
+            item_func=lambda x: 'Marker')
+    return toc_out
 
 
 def convert_seconds_to_timestamp(seconds: str) -> str:
