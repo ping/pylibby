@@ -967,6 +967,8 @@ def main():
         print(f"PyLibby {VERSION}")
         quit()
 
+    # allows users to specify paths relative to user home, e.g. "~/Downloads/"
+    args.output = os.path.expanduser(args.output)
 
     # We should not be logging in here, stuff like -i and -dlo do not require it. This causes slowdown.
     L = Libby(args.id_file, code=args.code, archive_path=args.archive, timeout=args.timeout,
